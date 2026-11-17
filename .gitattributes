@@ -1,0 +1,6 @@
+# 모든 텍스트 파일을 LF로 받는다(Windows에서 Dockerfile·.sh·.sql이 CRLF면 컨테이너에서 실패)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.xlsx binary
+*.parquet binary

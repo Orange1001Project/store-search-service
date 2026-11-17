@@ -1,0 +1,30 @@
+# 비밀 값
+.env
+*.env.local
+infra/.env
+
+# 원천·대용량 데이터(Drive에 둔다). 원천 엑셀에는 사업자번호가 들어 있다
+*.xlsx
+*.xls
+*.dump
+*.backup
+*.parquet
+models/
+
+# 빌드 결과
+build/
+out/
+target/
+.gradle/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+
+# IDE·OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
