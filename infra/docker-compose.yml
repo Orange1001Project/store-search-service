@@ -1,0 +1,44 @@
+# 로컬 개발용 Docker Compose (docs/dev/LOCAL_DEV_SETUP.md)
+# - db: PostgreSQL 16 + PostGIS 3(2026-11 빌드 시 3.7) + pgvector 0.8 (infra/db/Dockerfile). 처음 뜰 때 docs/db/schema.sql을 실행해 테이블 20개를 만든다.
+# 임베딩 서버(docs/ARCHITECTURE.md ③)는 아직 없다. 만들 때 여기에 서비스로 더한다.
+# API 서버(Spring)와 화면(React)은 IDE에서 실행한다. Redis는 쓰지 않는다(docs/ARCHITECTURE.md 6-6).
+#
+# 사용: infra 폴더에서
+#   cp .env.example .env          # POSTGRES_PASSWORD 채우기
+#   docker compose up -d db       # DB만
+name: storesearch
+
+services:
+  db:
+    build: ./db
+    image: storesearch-db:16-postgis3-pgvector0.8
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-storesearch}
+      POSTGRES_USER: ${POSTGRES_USER:-storesearch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?infra/.env에 POSTGRES_PASSWORD를 넣으세요}
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - shared_buffers=${DB_SHARED_BUFFERS:-2GB}
+      - -c
+      - work_mem=64MB
+      - -c
+      - maintenance_work_mem=1GB
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"   # 이 PC에서만 접속
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # 처음 만들 때만 실행된다(볼륨이 비어 있을 때). 백엔드가 Flyway를 쓰기 시작하면 이 줄을 지운다.
+      - ../docs/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  db-data:
