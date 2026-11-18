@@ -8,4 +8,4 @@
 
 ## 모두가 쓰는 파일을 바꿨다면
 - [ ] `docs/api/openapi.yaml` 변경 → 바뀐 API와 이유를 위에 적음
-- [ ] `docs/db/schema.sql` 변경 → `DB_DESIGN.md`·`DB_TABLES.md`·`erdcloud.sql`도 맞춤
+- [ ] `docs/db/schema.sql` 변경 → `DB_TABLES.md`(컬럼표·관계 그림)도 맞춤
