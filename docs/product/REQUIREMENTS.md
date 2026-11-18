@@ -1,6 +1,6 @@
 # 가맹점 검색 서비스 요구사항 정의서 (초안)
 
-> 화면설계를 진행하며 함께 고친다 · 기준: `docs/product/SERVICE_POLICY.md`(정책), `docs/search/SEARCH_HANDOFF.md`(검색 이식), `docs/search/SEARCH_LOGGING.md`(로그)
+> 화면설계를 진행하며 함께 고친다 · 기준: `docs/product/SERVICE_POLICY.md`(정책), `docs/search/SEARCH_HANDOFF.md`(검색 이식)
 > 정책과 다르면 정책을 따르고 이 문서를 고친다. 결정 배경은 노션 "가맹점 검색 서비스 정책" 페이지 아래 "요구사항 정의서 설명".
 
 ## 0. 문서 규칙
@@ -258,7 +258,7 @@
 
 | ID | 요구사항 | 상세 | 우선 | 근거 |
 |---|---|---|---|---|
-| FR-LOG-01 | 검색 로그 | 검색 1건마다 비동기로 기록. 필드는 `docs/search/SEARCH_LOGGING.md` 2절 + 입력 방식 `browse`(검색어 없는 조회)·`place`(지명만 입력) | P0 | P14-1, L2 |
+| FR-LOG-01 | 검색 로그 | 검색 1건마다 비동기로 기록. 필드는 `docs/db/DB_TABLES.md` 7절 `search_log` + 입력 방식 `browse`(검색어 없는 조회)·`place`(지명만 입력) | P0 | P14-1, L2 |
 | FR-LOG-02 | 노출 로그 | 사용자가 본 페이지마다 검색 로그 한 행의 가게 목록(`results`)으로(첫 페이지 행에 1~20위, 다음 페이지를 보면 같은 query_id·page 2 행에 21~40위, DR-16). 가게, 절대 순위, 검색 중심 기준 거리, 점수 | P0 | P14-1, L3 |
 | FR-LOG-03 | 행동 이벤트 | impression, click, action(directions·favorite·share), dwell, region_choice, chip_change, research_here, cluster_click(묶음 크기, 확대/목록), pin_click, reformulate, abandon. 화면이 몇 초마다 묶어 보내고, 떠날 때 sendBeacon | P1 | L4 |
 | FR-LOG-04 | 공통 필드 | event_id(중복 제거), client_ts, server_ts, schema_version | P0 | L1 |

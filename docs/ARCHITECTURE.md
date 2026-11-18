@@ -1,6 +1,6 @@
-# 아키텍처 (PoC v0.1)
+# 아키텍처 (PoC)
 
-> 작성 2026-11-16 · 기준: `docs/product/REQUIREMENTS.md` v0.14, `docs/db/DB_DESIGN.md` v0.3.5, `docs/api/openapi.yaml` v0.5
+> 기준: `docs/product/REQUIREMENTS.md`, `docs/db/DB_TABLES.md`, `docs/api/openapi.yaml`
 > 이 문서는 **무엇으로 구성하는지**(1~5절)와 **왜 그렇게 정했는지**(6~8절)를 적는다. 표 구조는 [`db/DB_TABLES.md`](db/DB_TABLES.md), API는 [`api/API_RULES.md`](api/API_RULES.md).
 > 범위: **PoC**. 공공 보안 인증(CSAP)·사내 서버는 고려하지 않는다(2026-11-13 결정). 정식 서비스로 갈 때 바뀌는 곳은 8절.
 

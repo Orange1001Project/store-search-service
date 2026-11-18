@@ -2381,7 +2381,7 @@ components:
         inputType:
           type: string
           description: |
-            화면이 사용자가 한 일을 보낸다(로그 input_type, SEARCH_LOGGING.md 2절).
+            화면이 사용자가 한 일을 보낸다(로그 input_type, docs/db/DB_TABLES.md 7절 search_log).
             typed 직접 입력·'현 지도 재검색', recent 최근 검색어(P1), chip 칩을 바꿔 다시 검색,
             region_view "○○ 지역으로 보기"(skipNameFirst), region_choice "다른 ○○"(P1), place_store 지명만 입력의 "'○○' 가게 보기"(P1),
             autocomplete 자동완성(P2).
@@ -2983,7 +2983,7 @@ components:
 
     Event:
       type: object
-      description: SEARCH_LOGGING.md 4절. 서버가 serverTs·sessionId·봇 표시를 붙여 저장
+      description: 요구사항 FR-LOG-03·04, 컬럼은 docs/db/DB_TABLES.md 7절 event_log. 서버가 serverTs·sessionId·봇 표시를 붙여 저장
       required: [eventId, clientTs, type]
       properties:
         eventId: { type: string, format: uuid, description: 화면이 만든 번호(재전송 중복 제거) }

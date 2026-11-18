@@ -1,34 +1,147 @@
 # DB 테이블 설명서
 
-> 기준: `docs/db/DB_DESIGN.md`(테이블 20개) · 실행 SQL `docs/db/schema.sql` · ERDCloud 그림 `docs/db/erdcloud.sql`
-> 각 테이블의 역할·주요 규칙과 모든 컬럼의 역할을 적는다. 컬럼표는 `schema.sql`에서 자동으로 만들었다(둘이 다르면 SQL이 맞다).
-> 왜 이렇게 설계했는지(관계·키·줄인 테이블)는 [`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md).
+> **DB가 무엇을 갖고 어떻게 쓰이는지**를 적는 기준 문서다. 왜 이렇게 설계했는지는 [`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md).
+> 실행 SQL: [`schema.sql`](schema.sql) — 정확한 컬럼·제약은 SQL이 기준이다. 아래 컬럼표는 schema.sql에서 자동으로 만들었다(둘이 다르면 SQL이 맞다). 관계 그림은 1절(GitHub에서 바로 보임). ERDCloud 그림은 발표·공유용으로 ERD 담당이 `schema.sql`에서 만든다.
+> 입력: `docs/product/REQUIREMENTS.md`(4절 DR-01~19), `docs/product/SERVICE_POLICY.md`, `docs/search/SEARCH_HANDOFF.md`
+> 검증: 로컬 Docker(PostgreSQL 16 + PostGIS 3.7 + pgvector 0.8)에서 schema.sql 실행 확인(2026-11-17). **실제 데이터 적재·속도 측정은 아직**(12절).
+> 예전 `DB_DESIGN.md`(전체 명세)와 `erdcloud.sql`은 이 문서와 `DB_DESIGN_WHY.md`로 나눠 합쳤다(2026-11-17). 옛 파일은 AI 레포 `store-search` main에 남아 있다.
 > 표기: **PK** = 기본 키(행 하나를 집어내는 값), **FK** = 다른 테이블에 꼭 있어야 하는 값(연결선). 자료형은 PostgreSQL 기준.
 
 ## 1. 한눈에 보기
 
-| 묶음 | 테이블 | 한 줄 설명 | 주요 연결 |
-|---|---|---|---|
-| 가맹점·갱신 | `store` | 가게 1곳 = 1행. 원천 값 + 현재 상태 | `store_override`, `member_favorite`이 가리킴 |
-| | `store_override` | 관리자가 고친 값(가게 × 필드) | → `store`, `admin_user` |
-| | `store_snapshot` | **검색이 읽는 표.** 버전 × 가게의 최종 값 + 벡터 | 버전별 파티션(FK 없음) |
-| | `data_version` | 데이터 버전. 활성은 언제나 하나 | `store_snapshot`, `refresh_job`이 가리킴 |
-| | `refresh_job` | 주간 갱신 작업 1건 = 원천 파일 1개 | → `data_version`, `admin_user` |
-| 참조 사전 | `category` | 업종 칩 17개(공식 온누리 중분류) | |
-| | `payment_method` | 결제 칩(카드결제·QR결제) | |
-| | `brand_alias` | 브랜드 대표 이름과 다른 표기 | |
-| | `gazetteer` | 지명 사전 | |
-| | `place_exclusion` | 지명으로 읽지 않을 말 | |
-| | `expansion_cache` | 업종 검색어 확장어 | |
-| 회원 | `member` | 회원 1명 = 1행. 탈퇴도 행을 남김 | `member_auth`, `member_recent_search`, `member_favorite`이 가리킴 |
-| | `member_auth` | 로그인 수단(카카오·구글) | → `member` |
-| | `member_refresh_token` | 로그인 유지용 갱신 토큰(14일) | → `member` |
-| | `member_recent_search` | 최근 검색어 10개 | → `member` |
-| | `member_favorite` | 관심 가맹점 500곳 | → `member`, `store` |
-| 관리자 | `admin_user` | 관리자 계정 | 수정·갱신·숨김 기록이 가리킴 |
-| 로그·통계 | `search_log` | **중심 로그.** 검색 결과 한 페이지 = 1행 | 월별 파티션(FK 없음) |
-| | `event_log` | 사용자 행동(클릭·길찾기 등) | 월별 파티션(FK 없음) |
-| | `stats_daily` | 하루 요약 숫자 | |
+테이블 **20개**, 다섯 묶음: 가맹점·갱신(5) · 참조(6) · 회원(5) · 관리자(1) · 로그·통계(3).
+
+| 묶음 | 테이블 | 한 줄 설명 | 주요 연결 | 요구사항 |
+|---|---|---|---|---|
+| 가맹점·갱신 | `store` | 가게 1곳 = 1행. 원천 값 + 현재 상태 | `store_override`, `member_favorite`이 가리킴 | DR-01 |
+| | `store_override` | 관리자가 고친 값(가게 × 필드) | → `store`, `admin_user` | DR-02, FR-STO |
+| | `store_snapshot` | **검색이 읽는 표.** 버전 × 가게의 최종 값 + 벡터 | 버전별 파티션(FK 없음) | DR-04, DR-07 |
+| | `data_version` | 데이터 버전. 활성은 언제나 하나 | `store_snapshot`, `refresh_job`이 가리킴 | DR-05 |
+| | `refresh_job` | 주간 갱신 작업 1건 = 원천 파일 1개 | → `data_version`, `admin_user` | DR-06 |
+| 참조 사전 | `category` | 업종 칩 17개(공식 온누리 중분류) | | DR-07, FR-MSG-04 |
+| | `payment_method` | 결제 칩(카드결제·QR결제) | | DR-07, FR-MSG-04 |
+| | `brand_alias` | 브랜드 대표 이름과 다른 표기 | | DR-08 |
+| | `gazetteer` | 지명 사전 | | DR-09 |
+| | `place_exclusion` | 지명으로 읽지 않을 말 | | DR-10 |
+| | `expansion_cache` | 업종 검색어 확장어 | | DR-12 |
+| 회원 | `member` | 회원 1명 = 1행. 탈퇴도 행을 남김 | `member_auth`, `member_recent_search`, `member_favorite`이 가리킴 | DR-13, DR-19 |
+| | `member_auth` | 로그인 수단(카카오·구글) | → `member` | DR-13 |
+| | `member_refresh_token` | 로그인 유지용 갱신 토큰(14일) | → `member` | DR-13, FR-MBR-06 |
+| | `member_recent_search` | 최근 검색어 10개 | → `member` | DR-14 |
+| | `member_favorite` | 관심 가맹점 500곳 | → `member`, `store` | DR-14 |
+| 관리자 | `admin_user` | 관리자 계정 | 수정·갱신·숨김 기록이 가리킴 | DR-15 |
+| 로그·통계 | `search_log` | **중심 로그.** 검색 결과 한 페이지 = 1행 | 월별 파티션(FK 없음) | DR-16 |
+| | `event_log` | 사용자 행동(클릭·길찾기 등) | 월별 파티션(FK 없음) | DR-16 |
+| | `stats_daily` | 하루 요약 숫자 | | DR-17 |
+
+### 용어
+
+| 용어 | 뜻 |
+|---|---|
+| PK(기본 키) | 행을 하나로 찾는 값. 같은 값이 두 번 들어갈 수 없다 |
+| FK(외래 키) | "이 값은 저 테이블에 있어야 한다"는 약속. 없는 가게를 즐겨찾기에 넣는 것을 DB가 막는다 |
+| 인덱스 | 책의 찾아보기. 조회는 빨라지고 쓰기는 조금 느려진다 |
+| 파티션 | 한 테이블을 안에서 여러 칸으로 나눈 것. 칸 하나를 통째로 붙이거나 지울 수 있다 |
+| 스냅샷 | 어느 시점의 데이터를 통째로 찍어 둔 사본 |
+| 트랜잭션 | 여러 변경을 "전부 되거나 전부 안 되거나"로 묶은 것 |
+
+### 관계 그림(ERD)
+
+점선은 FK 없이 값으로만 연결된 관계다. 관계마다 왜 그 개수·FK인지는 [`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 3절.
+
+```mermaid
+erDiagram
+    store ||--o{ store_override : "필드별 수정"
+    store ||..o{ store_snapshot : "버전별 검색용 값(FK 없음)"
+    store ||--o{ member_favorite : ""
+    data_version ||..o{ store_snapshot : "파티션 = 버전"
+    data_version ||--o{ refresh_job : "만드는 버전"
+    data_version ||--o{ store : "마지막으로 본 버전"
+    member ||--o{ member_auth : "로그인 수단"
+    member ||--o{ member_refresh_token : "갱신 토큰"
+    member ||--o{ member_recent_search : "최대 10"
+    member ||--o{ member_favorite : "최대 500"
+    admin_user ||--o{ store_override : "수정한 관리자"
+    admin_user ||--o{ refresh_job : "실행·승인"
+    search_log ||..o{ event_log : "query_id(FK 없음)"
+
+    store {
+        uuid store_id PK
+        char fingerprint UK
+        varchar store_name
+        varchar business_no
+        varchar lifecycle_status
+        smallint missing_count
+        boolean is_hidden
+        boolean coord_error
+    }
+    store_override {
+        uuid store_id PK
+        varchar field_name PK
+        jsonb override_value
+        boolean source_changed
+    }
+    store_snapshot {
+        smallint version_id PK
+        uuid store_id PK
+        geography geom
+        varchar_arr payment_codes
+        boolean searchable
+        vector embedding
+    }
+    data_version {
+        smallint version_id PK
+        varchar version_name UK
+        varchar status
+    }
+    refresh_job {
+        bigint job_id PK
+        char file_sha256
+        varchar status
+        boolean needs_approval
+    }
+    member {
+        uuid member_id PK
+        varchar status
+        varchar nickname
+        timestamptz withdrawn_at
+    }
+    member_auth {
+        bigint auth_id PK
+        uuid member_id FK
+        varchar provider
+    }
+    member_refresh_token {
+        uuid token_id PK
+        uuid member_id FK
+        char token_hash
+    }
+    member_recent_search {
+        uuid member_id PK
+        varchar query_norm PK
+    }
+    member_favorite {
+        uuid member_id PK
+        uuid store_id PK
+    }
+    admin_user {
+        bigint admin_id PK
+        varchar login_id UK
+    }
+    search_log {
+        uuid query_id PK
+        smallint page PK
+        timestamptz logged_at PK
+        jsonb results
+    }
+    event_log {
+        uuid event_id PK
+        timestamptz server_ts PK
+        uuid query_id
+    }
+```
+
+참조 테이블 6개(`category`, `payment_method`, `brand_alias`, `gazetteer`, `place_exclusion`, `expansion_cache`)와 `stats_daily`는 다른 테이블과 FK가 없어 그림에서 뺐다(`brand_alias`·`place_exclusion`의 수정 관리자 FK만 있음).
 
 ## 2. 설계 원칙
 
@@ -47,7 +160,7 @@
 - `store_id`는 이미 발급한 번호를 바꾸지 않는다. 평가 정답 데이터가 이 번호로 연결되어 있다. 새 가게만 새로 발급한다.
 - `fingerprint`(지문) = 사업자번호 + 가맹점명 + 도로명 주소(원천 값). 도로명 주소는 시군구 + 도로명 + 건물번호까지만 본다(시도 이름·상세 주소·괄호 뒤는 뺌). 다음 주 파일의 행이 지난주 그 가게인지 이것으로 판단한다. 예: "무학1길 30 (봉방동)"과 "무학1길 30 (봉방동) 김창숙미용실"은 같은 가게. 상호나 건물번호가 바뀌면 새 가게가 된다.
 - 사업자번호·가맹점번호·법정동코드·표준산업분류코드는 **문자열**이다. 숫자로 두면 앞자리 0이 사라진다.
-- 상태(`lifecycle_status`): 원천에서 한 번 빠지면 확인 대기(`missing_count` = 1, 바로 검색에서 빠짐), 다음 주에 돌아오면 영업중, 2주 연속 빠지면 폐업.
+- 상태(`lifecycle_status`): 원천에서 한 번 빠지면 확인 대기(`missing_count` = 1, 바로 검색에서 빠짐), 다음 주에 돌아오면 영업중, 2주 연속 빠지면 폐업(8-2절 그림).
 - 숨김: 숨길 때도 풀 때도 사유가 필수다. 마지막 숨김·해제의 사유·관리자·시각을 남긴다(`ck_store_visibility`).
 - **검색 대상** = 영업중 · 숨김 아님 · 좌표 오류 아님. 이 값은 스냅샷의 `searchable`로 미리 계산해 둔다.
 
@@ -454,15 +567,299 @@
 | `n_bot` | 봇 검색 수 | integer |  | 봇 검색 수(따로 셈) |
 | `created_at` | 생성 시각 | timestamptz |  | 이 줄을 만든 시각 |
 
-## 8. 자주 묻는 질문
+## 8. 데이터가 생기고 바뀌는 흐름
+
+### 8-1. 흐름
+
+```
+[주간 갱신] 운영자가 서버에서 갱신 스크립트 실행(원천 엑셀 경로 + 실행 관리자 계정) → refresh_job 생성(파일 이름·지문·위치)
+            → 메모리에서 원천 행 검사 → 지문으로 기존 가게와 맞춤(새로 생김·바뀜·그대로·사라짐)
+            → 미리보기(건수·좌표 오류·충돌, 스크립트 결과) → 사라짐이 기준 %를 넘으면 멈추고 승인 명령을 기다림(원천 정리 기간에는 적용 안 함)
+            → 새 버전(data_version, building) + 새 스냅샷 파티션 만들기
+               (바뀌지 않은 가게는 이전 벡터 복사, 바뀐 가게만 임베딩 서버로)
+            → 전환 트랜잭션: 그사이 관리자 수정·숨김 다시 적용 → store 원천 값·상태 반영
+               → 파티션 붙이기 → 이전 버전 retired, 새 버전 active
+               → 폐업·숨김 가게 즐겨찾기 삭제, 수정한 필드의 원천이 바뀌었으면 source_changed 표시
+            → 실패하면 아무것도 반영되지 않고 이전 버전 그대로(FR-UPD-09)
+
+[관리자 수정] store_override 저장 → 유효 값 다시 계산 → 활성 스냅샷의 그 가게 행 갱신(상호·품목이면 벡터도) → 1분 안 검색 반영
+[검색]       활성 버전 번호로 store_snapshot 조회(범위 + 벡터) → 점수·노출·정렬은 앱 → search_log 한 줄 기록(비동기)
+[회원]       가입 = member(약관 버전·동의 시각) + member_auth
+             탈퇴 = member를 withdrawn으로(닉네임·이메일·약관 버전·동의 시각 비움) + 로그인 수단·갱신 토큰·최근 검색어·즐겨찾기 삭제
+[로그]       매일 새벽 전날 통계 요약(stats_daily) → 매달 다음 달 파티션 생성, 13개월 전 파티션 삭제
+```
+
+### 8-2. 가게 상태
+
+```
+            (원천에서 사라짐)                (2주 연속 없음)
+ active ───────────────────▶ pending ─────────────────▶ closed
+   ▲                           │
+   └─────(다음 주 다시 있음)────┘
+ is_hidden(관리자 숨김)과 coord_error(좌표 오류)는 상태와 별개인 표시.
+ 검색 대상(searchable) = active AND NOT is_hidden AND NOT coord_error   (정책 10-5)
+```
+
+- `missing_count`: 연속으로 원천에 없던 주 수. 다시 나타나면 0. 2가 되면 closed. 상태가 바뀌면 `status_changed_at`을 갱신한다.
+- 상태 변화의 **지난 이력은 남기지 않는다**. 지금 상태와 바뀐 시각만 있다. 주마다 몇 곳이 바뀌었는지는 `data_version`의 건수로 본다.
+
+### 8-3. DB에 두지 않는 것
+
+| 무엇 | 어디에 |
+|---|---|
+| 정책 yaml·계수, 문구·봇 기준·안전장치 %·보관 기간 등 설정값(DR-18) | 앱 설정 파일(git). 바꾸려면 배포 |
+| 업로드한 엑셀 본문 | 파일 저장소(DB에는 위치·지문만) |
+| 갱신 중 원천 행 비교 | 갱신 작업의 메모리(21만 줄) |
+| 지점 접미사(DR-11) | 검색 서버가 스냅샷 상호에서 계산해 메모리에 |
+| 결과 10분 보관(FR-LST-02) | API 서버 메모리 캐시(PoC는 서버 1대) |
+| 인기·결과 없는 검색어 | 필요할 때 `search_log`에서 계산 |
+
+### 8-4. 가정
+
+| # | 가정 | 바뀌면 |
+|---|---|---|
+| A1 | 원천 결제 열은 `card_payment`·`qr_payment`(2026-11-13 파일부터 원천 열 이름이 QR결제), 칩과는 `payment_method.source_column`으로 연결 | 매핑 행만 바꿈 |
+| A2 | 같은 가게 원천 행끼리 값이 다르면 결제는 하나라도 Y면 Y, `source_conflict` 표시 | 갱신 로직만 |
+| A3 | 지명만 입력도 최근 검색어에 남김 | — |
+| A4 | 100m 격자 ID는 문자열(예: EPSG:5179 100m 격자 행·열) | 문자열 길이 안에서 그대로 |
+| A5 | 스냅샷은 활성 + 직전 1개만 남긴다 | 보관 개수 설정 |
+| A6 | 폐업 가게가 같은 지문으로 다시 나타나면 active로 되살린다(즐겨찾기는 이미 지워져 복구 안 됨) | 상태 전이만 |
+| A7 | 약관(이용약관·개인정보·만 14세)은 한 묶음 버전으로 동의받는다. 위치기반 약관이 필요하다는 법무 답이 오면 `member`에 동의 시각 컬럼 하나 추가 | 컬럼 추가 |
+| A8 | 임베딩 모델이 바뀌면 새 데이터 버전으로 전체를 다시 만든다 | — |
+
+## 9. 지켜야 할 규칙
+
+### 9-1. 잘못된 데이터 막기
+
+| 막을 것 | 방법 |
+|---|---|
+| 같은 가게 두 번 | `store.fingerprint` UNIQUE |
+| 같은 원천 파일 두 번 반영 | `refresh_job` 조건부 UNIQUE(`file_sha256`, 성공한 작업만) — 실패한 파일은 다시 올릴 수 있다 |
+| 같은 가게 즐겨찾기 두 번 | `member_favorite` PK(회원, 가게) + `ON CONFLICT DO NOTHING` |
+| 같은 검색어 최근 검색어 두 번 | `member_recent_search` PK(회원, 정규화 검색어) + `ON CONFLICT DO UPDATE`(시각 갱신) |
+| 같은 소셜 계정으로 두 회원 | `member_auth` UNIQUE(provider, provider_user_id) |
+| 한 표기가 두 브랜드에 | `brand_alias.alias_norm` UNIQUE |
+| 활성 버전 둘 / 진행 중 갱신 둘 | 조건부 UNIQUE 인덱스 |
+| 숨김·해제에 사유·처리자 없음 / 2주 안 됐는데 폐업 | CHECK(`ck_store_visibility`, `ck_store_closed_missing`) |
+| 탈퇴인데 개인정보가 남음 | CHECK(`ck_member_status`) |
+| 없는 가게·회원 참조 | FK(로그·스냅샷 제외) |
+
+### 9-2. 삭제와 상태 변화
+
+| 일 | 처리 |
+|---|---|
+| 회원 탈퇴 | 한 트랜잭션에서 회원 행을 잠그고 → `status = 'withdrawn'`, `withdrawn_at = now()`, 닉네임·이메일·마지막 로그인·약관 버전·동의 시각 NULL → 로그인 수단·갱신 토큰·최근 검색어·즐겨찾기 삭제. 남는 것은 회원 번호·가입·탈퇴 시각뿐(DR-13, P9-4). 소셜 연결 끊기는 앱이 먼저 호출. 같은 소셜 계정으로 다시 가입하면 새 회원 |
+| 가게 폐업 확정·관리자 숨김 | 가게 행은 그대로(상태만). 같은 트랜잭션에서 그 가게 즐겨찾기 삭제(정책 9-3), 활성 스냅샷 `searchable = false` |
+| 가게 확인 대기 | 즐겨찾기는 지우지 않고 목록에서만 숨긴다 |
+| 관리자 수정 해제 | `store_override` 행 삭제 → 원천 값으로 돌아감 |
+| 원천 변경 알림 처리 | "수정 유지"면 `source_changed = false`, `source_value_at_edit = new_source_value`. "원천으로"면 행 삭제 |
+| 관리자 퇴사 | 삭제하지 않고 `status = 'disabled'` |
+| 이전 데이터 버전 | 활성 + 직전 1개만 남기고 파티션 `DETACH … CONCURRENTLY`(검색을 막지 않음) 후 DROP. `data_version` 행은 남김 |
+| 로그 | 1년 지난 달 파티션 DROP. `stats_daily`는 계속 보관(숫자 지표만. 검색어 목록·문구별 비율은 1년 안만 볼 수 있음) |
+| 갱신 작업 | `refresh_job`은 1년 지나면 삭제(DR-06). 단 활성·직전 버전을 만든 작업은 남김 |
+| 갱신 토큰 | 로그아웃하면 폐기, 탈퇴하면 삭제, 만료 토큰은 매일 삭제 |
+
+| 데이터 | 물리 삭제 / 논리 삭제 |
+|---|---|
+| 가게 | 논리(상태) |
+| 회원 행 | 논리(상태) + 개인정보 즉시 비움 |
+| 로그인 수단·갱신 토큰·최근 검색어·즐겨찾기 | 물리(탈퇴 즉시, P9-4) |
+| 관리자 | 논리(비활성) |
+| 로그·스냅샷 | 물리(파티션째) |
+
+### 9-3. 동시에 요청이 들어올 때
+
+| 상황 | 생길 문제 | 대응 |
+|---|---|---|
+| 즐겨찾기 버튼 두 번 | 같은 행 두 번 | PK + `ON CONFLICT DO NOTHING` |
+| 즐겨찾기 500곳 직전에 두 요청 | 501곳 | 트랜잭션에서 `SELECT … FROM member WHERE member_id = ? FOR UPDATE`로 그 회원을 잠그고 → `status = 'active'` 확인 → 개수 확인 → 넣기 |
+| 최근 검색어 동시 저장 | 11개 이상 | 같은 회원 잠금 → upsert → 최신 10개 밖 삭제 |
+| 갱신 두 번 동시 실행 | 둘 다 진행 | 조건부 UNIQUE로 두 번째 INSERT 실패 → "진행 중" 표시(FR-UPD-08) |
+| 갱신 중 관리자 수정·숨김 | 새 버전에 수정·숨김이 빠짐 | 새 버전은 `edits_applied_until`까지의 수정·숨김으로 만들고, 전환 트랜잭션에서 그 뒤 것(`store_override.updated_at`, `store.visibility_changed_at` > 기준 시각)을 다시 적용(숨김이면 그 가게 `searchable = false`). 전환은 권고 잠금(`pg_advisory_xact_lock`)을 독점, 수정은 공유로 잡는다 |
+| 갱신 중 검색 | 반쯤 바뀐 데이터 | 검색은 시작할 때 활성 버전 번호 하나를 잡고 그 번호로만 조회 |
+| 두 관리자가 같은 필드 수정 | 앞 값을 덮음 | `store_override.updated_at`으로 낙관적 잠금(JPA `@Version`) |
+| 이벤트 재전송 | 같은 클릭 두 번 | 그대로 저장하고, 통계를 낼 때 같은 `event_id`는 한 번만 센다 |
+| 같은 페이지 다시 요청 | 같은 검색 줄 두 번 | 결과 캐시(10분)에 "기록한 페이지"를 표시해 처음 볼 때만 기록 |
+
+### 9-4. 값이 어긋날 수 있는 곳
+
+| 곳 | 위험 | 대응 |
+|---|---|---|
+| 스냅샷 ↔ `store`·`store_override` | 관리자 수정이 스냅샷에 안 들어감 | 유효 값 계산을 서비스 한 곳에서만, 수정 트랜잭션에서 활성 스냅샷 행까지 갱신. 매일 일치 검사 |
+| `store` 상태 ↔ 스냅샷 `searchable` | 숨겼는데 검색에 나옴 | 같은 트랜잭션에서 둘 다 |
+| 스냅샷 → `store`·`data_version`(FK 없음) | 없는 가게 번호가 들어감 | 전환 전 검증 쿼리(없는 store_id 0건) |
+| 스냅샷 업종·결제 목록 | 코드표에 없는 값 | 갱신 작업이 코드표에 있는 값만 넣는다 |
+| 통계 요약 ↔ 원본 로그 | 요약 전에 원본 삭제 | 파티션 삭제는 그 달 모든 날짜의 `stats_daily`가 있을 때만 |
+
+## 10. 주요 조회와 인덱스
+
+### 10-1. 조회 예시
+
+검색 서버는 시작할 때와 버전이 바뀔 때 활성 버전 번호(`:v`)를 읽어 들고 있는다.
+
+```sql
+-- 활성 버전
+SELECT version_id FROM data_version WHERE status = 'active';
+
+-- ① 검색 중심 반경(1km / 10km) + 벡터 유사도 상위 50
+SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
+FROM   store_snapshot s
+WHERE  s.version_id = :v AND s.searchable
+  AND  ST_DWithin(s.geom, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius_m)
+ORDER  BY s.embedding <=> :qvec
+LIMIT  50;
+
+-- ② 넓은 지명: 법정동 코드 앞 2·5·8자리 + 벡터 상위 50
+SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
+FROM   store_snapshot s
+WHERE  s.version_id = :v AND s.searchable AND s.legal_dong_code LIKE :prefix || '%'
+ORDER  BY s.embedding <=> :qvec
+LIMIT  50;
+
+-- ③ 지도 화면 사각형 안(이 지역에서 다시 검색) + 벡터 상위 50
+SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
+FROM   store_snapshot s
+WHERE  s.version_id = :v AND s.searchable
+  AND  s.geom && ST_MakeEnvelope(:west, :south, :east, :north, 4326)::geography
+ORDER  BY s.embedding <=> :qvec
+LIMIT  50;
+
+-- ④ BM25·상호 일치로만 들어온 후보의 실제 코사인
+SELECT store_id, 1 - (embedding <=> :qvec) AS cosine
+FROM   store_snapshot WHERE version_id = :v AND store_id = ANY(:ids);
+
+-- ⑤ 검색어 없는 조회: 화면 안 가게, 칩, 가까운 순 300곳
+--    결제 칩은 여러 개 고를 수 있고 하나라도 되면 포함(OR, FR-MSG-04). 업종과는 AND
+SELECT s.store_id, s.store_name, s.primary_category, s.market_type, s.market_name, s.payment_codes,
+       ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lng
+FROM   store_snapshot s
+WHERE  s.version_id = :v AND s.searchable
+  AND  s.geom && ST_MakeEnvelope(:west, :south, :east, :north, 4326)::geography
+  AND  (:cat IS NULL OR :cat = ANY(s.category_codes))
+  AND  (cardinality(:pays) = 0 OR s.payment_codes && :pays)   -- && = 목록이 하나라도 겹침
+ORDER  BY s.geom <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+          s.store_name COLLATE "C", s.store_id                     -- 같은 거리면 상호 가나다순, 그다음 store_id(API와 같은 순서)
+LIMIT  300;
+
+-- ⑤-2 겹친 가게 목록(spot, FR-MAP-11): 좌표를 소수 다섯째 자리로 반올림해 같은 가게 전부(상한 없음), 상호 가나다순
+--      geom && 작은 상자로 먼저 좁혀 공간 색인을 쓰고, 반올림 비교로 옆 좌표를 뺀다
+SELECT s.store_id, s.store_name, s.primary_category, s.market_type, s.market_name, s.payment_codes,
+       ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lng
+FROM   store_snapshot s
+WHERE  s.version_id = :v AND s.searchable
+  AND  s.geom && ST_MakeEnvelope(:lng - 0.00001, :lat - 0.00001, :lng + 0.00001, :lat + 0.00001, 4326)::geography
+  AND  round(ST_Y(s.geom::geometry)::numeric, 5) = round(:lat, 5)
+  AND  round(ST_X(s.geom::geometry)::numeric, 5) = round(:lng, 5)
+  AND  (:cat IS NULL OR :cat = ANY(s.category_codes))
+  AND  (cardinality(:pays) = 0 OR s.payment_codes && :pays)
+ORDER  BY s.store_name COLLATE "C", s.store_id;
+
+-- ⑥ 즐겨찾기 목록(확인 대기는 숨김)
+SELECT f.store_id, s.store_name, s.market_type, s.market_name, s.address_short
+FROM   member_favorite f
+JOIN   store st ON st.store_id = f.store_id AND st.lifecycle_status = 'active'
+JOIN   store_snapshot s ON s.version_id = :v AND s.store_id = f.store_id
+WHERE  f.member_id = :member
+ORDER  BY f.created_at DESC;
+
+-- ⑦ 최근 검색어 10개
+SELECT query_text FROM member_recent_search
+WHERE  member_id = :member ORDER BY searched_at DESC LIMIT 10;
+
+-- ⑧ 관리자 가맹점 조회(A-03): 상호·주소·시장명 부분 일치 또는 사업자번호·store_id 일치, 상태·숨김·수정 여부·업종·좌표 오류로 거르기.
+--    업종은 수정 값까지 반영한 활성 스냅샷의 대표 업종. 관리자만 쓰므로 부분 일치는 훑기로 충분(LIKE 앞부분 인덱스에 기대지 않음)
+SELECT s.store_id, coalesce(o.override_value #>> '{}', s.store_name) AS store_name, s.address,
+       s.lifecycle_status, s.status_changed_at, s.is_hidden, s.coord_error,
+       sn.primary_category, sn.market_name, sn.market_type,
+       (SELECT count(*) FROM store_override x WHERE x.store_id = s.store_id) AS edited_count   -- edited = edited_count > 0
+FROM   store s
+LEFT   JOIN store_override o ON o.store_id = s.store_id AND o.field_name = 'store_name'
+LEFT   JOIN store_snapshot sn ON sn.version_id = :active_version AND sn.store_id = s.store_id
+WHERE  (:q IS NULL OR s.business_no = :q OR s.store_id::text = :q
+        OR s.store_name ILIKE '%' || :q || '%' OR s.address ILIKE '%' || :q || '%' OR s.market_name ILIKE '%' || :q || '%')
+  AND  (:status IS NULL OR s.lifecycle_status = :status)
+  AND  (:hidden IS NULL OR s.is_hidden = :hidden)
+  AND  (:coord_error IS NULL OR s.coord_error = :coord_error)
+  AND  (:category IS NULL OR sn.primary_category = :category)
+  AND  (:edited IS NULL OR EXISTS (SELECT 1 FROM store_override x WHERE x.store_id = s.store_id) = :edited)
+ORDER  BY coalesce(o.override_value #>> '{}', s.store_name) COLLATE "C", s.store_id
+LIMIT  50 OFFSET :offset;   -- 수정 값을 반영한 상호 가나다순 고정. "가나다순"은 어디서나 COLLATE "C"(유니코드 코드 순서)로 쓴다:
+                            -- 한글 음절은 코드 순서가 가나다순이고, DB 기본 정렬 설정에 따라 영문·숫자·공백 순서가 달라지지 않는다
+--    성능 메모(백엔드 개발 때 측정 후 결정): 검색어 없이 열면 21만 행을 훑어 상위 50건만 남기는 정렬(top-N)이라
+--    관리자 몇 명이 쓰는 화면으로는 충분할 것으로 본다. 1초를 넘으면 ① 수정 값을 반영한 상호를 store에 열로 두고(수정·해제 때 갱신)
+--    (그 열, store_id) 인덱스를 건 뒤 ② 뒤쪽 페이지는 OFFSET 대신 마지막 (상호, store_id) 다음부터 읽는 방식(keyset)으로 바꾼다.
+
+-- ⑨ 원천 변경 알림 목록
+SELECT store_id, field_name, override_value, new_source_value
+FROM   store_override WHERE source_changed ORDER BY updated_at;
+
+-- ⑩ 관리자 통계(기간)
+SELECT * FROM stats_daily
+WHERE  stat_date BETWEEN :from AND :to AND view = 'all' AND intent = 'all'
+ORDER  BY stat_date;
+
+-- ⑪ 결과 없는 검색어 상위 20(기간, 첫 페이지만): 결과 없음 + 문구 ⑤·⑥(FR-STA-02)
+SELECT query_text, count(*) AS n
+FROM   search_log
+WHERE  logged_at >= :from AND logged_at < :to AND page = 1
+  AND  (n_relevant_final = 0 OR message IN ('no_exact_name', 'weak_result'))
+  AND  NOT is_bot AND input_type NOT IN ('browse', 'place')
+GROUP  BY query_text ORDER BY n DESC LIMIT 20;
+
+-- ⑫ 검색 한 건에서 보여 준 가게 펼치기(순위별 분석)
+SELECT l.query_id, r->>'store_id' AS store_id, (r->>'position')::int AS position
+FROM   search_log l, jsonb_array_elements(l.results) r
+WHERE  l.logged_at >= :from AND l.logged_at < :to;
+```
+
+- BM25는 DB가 아니라 앱 메모리에서 계산한다(FR-RNK-03). 그래서 검색용 DB 조회는 ①~④로 충분하다.
+- 업종·결제 칩은 검색에서는 점수 뒤에 앱이 거른다(정책 5-6). SQL에서 칩을 거는 것은 ⑤뿐이다.
+
+### 10-2. 인덱스
+
+| 인덱스 | 대상 조회 | 이유 |
+|---|---|---|
+| 스냅샷 파티션마다 `GIST(geom) WHERE searchable` | ①③⑤⑤-2 | 반경·사각형·가까운 순을 공간 인덱스로. 검색 대상만 담아 작게 |
+| 스냅샷 파티션마다 `(legal_dong_code varchar_pattern_ops) WHERE searchable` | ② | `LIKE '3014%'` 앞부분 일치 |
+| 스냅샷 PK(version_id, store_id) | ④⑥ | 특정 가게 행 |
+| `store (business_no)`, `store (visibility_changed_at)` | ⑧, 전환 직전 숨김 재적용 | 사업자번호는 정확히 일치. 상호·주소·시장명 부분 검색은 훑기(21만 행, 관리자만) |
+| `store_override (updated_at)`, `(updated_at) WHERE source_changed` | 전환 직전 재적용, ⑨ | |
+| `member_recent_search (member_id, searched_at DESC)` | ⑦ | 먼저 회원으로 좁히고 그 안에서 시각 정렬 |
+| `member_favorite (member_id, created_at DESC)`, `(store_id)` | ⑥, 폐업·숨김 때 일괄 삭제 | |
+| `search_log (logged_at)`, `(session_id, logged_at)` | 통계·⑪, 재검색·봇 판단 | |
+| `event_log (query_id)`, `(server_ts)` | 통계에서 검색과 이벤트 잇기 | |
+| `gazetteer (name_norm)`, `brand_alias (canonical_name)` | 운영자 DB 조회(1차는 화면 없음) | 검색은 메모리에서 |
+
+**넣지 않은 인덱스**: 스냅샷 업종·결제 배열 GIN(⑤는 화면 사각형으로 먼저 줄어듦), 관리자 중간 글자 검색용 `pg_trgm`(21만 행이면 훑어도 충분), 로그 `store_id`(가게별 로그 화면 없음), `search_log.results` GIN(통계는 기간으로 먼저 자름). 벡터 근사 색인(HNSW)도 지금은 만들지 않는다([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절).
+
+## 11. 테이블 만들기
+
+- [`schema.sql`](schema.sql) 순서: 확장(postgis·vector·pgcrypto) → 관리자 → 참조 → 버전·갱신 → 가맹점 → 스냅샷 → 회원 → 로그 → 통계 → 기본 데이터 → 예시(버전 파티션, 로그 월 파티션).
+- 로컬에서는 `infra/docker-compose.yml`이 DB를 처음 만들 때 자동으로 실행한다([`../dev/LOCAL_DEV_SETUP.md`](../dev/LOCAL_DEV_SETUP.md)).
+- 운영에서는 Flyway 같은 마이그레이션 도구로 적용한다(JPA 자동 DDL은 끈다 — 파티션·조건부 인덱스·geography·vector를 JPA가 만들지 못한다).
+- **구조를 바꿀 때**: `schema.sql`을 고치고 → 이 문서의 컬럼표·1절 관계 그림을 맞추고 → 이유가 바뀌었으면 `DB_DESIGN_WHY.md`도 고친다.
+
+## 12. 팀이 더 정할 것
+
+| 항목 | 왜 필요한가 |
+|---|---|
+| 실제 데이터 적재·속도 측정 | 로컬에서 표 만들기까지만 확인했다. 특히 시도 전체·대도시 10km 검색 시간([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절) |
+| 업로드 파일 저장소(디스크 / 오브젝트 저장소) | `refresh_job.file_path` |
+| 파티션 자동화(pg_partman / 앱 스케줄러) | 매달 로그 파티션 생성·삭제, 매주 스냅샷 파티션 |
+| 100m 격자 ID 형식 | `user_cell`·`viewport_cells`(가정 A4) |
+| 갱신 토큰 저장소 | PoC는 DB 표(`member_refresh_token`). 요청이 많아지면 Redis로 옮길 수 있게 저장 부분을 인터페이스로 감쌈 |
+| JPA 매핑 | `vector`·`geography`는 Hibernate Spatial + pgvector 라이브러리 또는 네이티브 쿼리. 검색 ①~⑤는 네이티브 쿼리 추천 |
+
+## 13. 자주 묻는 질문
 
 | 질문 | 답 |
 |---|---|
 | 가게 정보가 `store`와 `store_snapshot` 두 군데 있는데 중복 아닌가? | 역할이 다르다. `store`는 매주 원천으로 덮어쓰는 원본이고, 스냅샷은 수정 값까지 합친 검색용 완성본이다. 하나로 합치면 갱신 중에 검색이 반쯤 바뀐 값을 보게 된다. |
 | 지난 버전을 왜 하나 남기나? | 전환하는 순간 이미 돌던 검색이 이전 버전을 끝까지 읽어야 하고, 다음 갱신 때 바뀌지 않은 가게의 벡터를 복사해 쓴다. 되돌리기 기능은 없다. |
 | 수정 이력이 없으면 누가 바꿨는지 모르지 않나? | 마지막으로 바꾼 관리자·시각·사유는 남는다. 그 전 값의 기록만 없다. 필요해지면 이력 표를 더한다. |
-| 보여 준 가게를 왜 한 행에 목록으로 넣었나? | 가게마다 한 행씩 쓰면 검색 한 번에 20행이 생긴다. 목록으로 넣으면 쓰기와 보관이 단순하고, 분석할 때는 목록을 펼쳐 본다(DB 설계 조회 ⑫). |
+| 보여 준 가게를 왜 한 행에 목록으로 넣었나? | 가게마다 한 행씩 쓰면 검색 한 번에 20행이 생긴다. 목록으로 넣으면 쓰기와 보관이 단순하고, 분석할 때는 목록을 펼쳐 본다(10-1절 조회 ⑫). |
 | 로그에 FK가 없으면 잘못된 값이 들어가지 않나? | 서버가 자동으로 쓰는 기록이라 잘못 들어갈 일이 적다. FK가 있으면 쓰기가 느려지고, 월 단위 삭제나 폐업 가게를 가리키는 옛 로그가 꼬인다. |
-| 벡터 색인(HNSW)은 왜 없나? | 범위로 먼저 좁히고 그 안에서만 계산한다. 1km 안은 보통 361곳이다. 가장 큰 경우(시도 전체 약 4.7만 곳)는 실제 DB에서 재 보고 느리면 대안을 쓴다. |
+| 벡터 색인(HNSW)은 왜 없나? | 범위로 먼저 좁히고 그 안에서만 계산한다. 1km 안은 보통 361곳이다. 가장 큰 경우(시도 전체 약 4.7만 곳)는 실제 DB에서 재 보고 느리면 대안을 쓴다([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절). |
 | 탈퇴 회원 행을 남기면 개인정보 보관 아닌가? | 닉네임·이메일은 비우고 로그인 수단은 지워서, 남는 것은 의미 없는 회원 번호와 시각뿐이다. |
 | 결제 수단이 늘면 열을 추가해야 하나? | 아니다. `payment_method`에 한 행 넣고, 스냅샷 결제 목록에 값만 넣는다. |
+

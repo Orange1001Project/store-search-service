@@ -1,6 +1,6 @@
 -- 가맹점 검색 서비스 DB 스키마 (초안) — 테이블 20개
 -- 대상: PostgreSQL 16 + PostGIS 3.4 이상 + pgvector 0.8 이상
--- 설계 설명: docs/db/DB_DESIGN.md · 입력: docs/product/REQUIREMENTS.md 4절(DR-01~19)
+-- 설계 설명: docs/db/DB_TABLES.md(무엇·어떻게), docs/db/DB_DESIGN_WHY.md(왜) · 입력: docs/product/REQUIREMENTS.md 4절(DR-01~19)
 --
 -- 규칙
 --  * 시각은 모두 timestamptz(UTC 저장). 하루·한 달 경계는 한국 시간(Asia/Seoul) 기준.

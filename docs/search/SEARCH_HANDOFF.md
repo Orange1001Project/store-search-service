@@ -3,7 +3,7 @@
 > 개발 레포로 옮김(2026-11-17, 원래 이름 `BACKEND_HANDOFF.md`). `seed/`·`docs/`로 시작하는 경로는 이 레포, `src/`·`scripts/`·`results/`·`data/`·`colab/`·`tests/`·`configs/models/`로 시작하는 경로는 [AI 레포(store-search)](https://github.com/Orange1001Project/store-search) 기준이다.
 
 기준: AI 레포 main PR #9(2026-11-09 최종 test) + 2026-11-10 팀 결정(AI 레포 `docs/DB_DESIGN_PROMPT.md`). 기획·정책 전체는 `docs/product/SERVICE_POLICY.md`,
-로그는 `docs/search/SEARCH_LOGGING.md`. 이 문서는 **오프라인 평가에서 넘어오는 파일**과 **평가 결과가 걸려 있어 그대로 옮겨야 하는 동작**만 적는다.
+로그는 요구사항 FR-LOG와 `docs/db/DB_TABLES.md` 7절. 이 문서는 **오프라인 평가에서 넘어오는 파일**과 **평가 결과가 걸려 있어 그대로 옮겨야 하는 동작**만 적는다.
 실험 근거는 AI 레포 `docs/archive/SERVICE_PIPELINE_PLAN.md` 11절.
 
 ## 1. 넘기는 파일

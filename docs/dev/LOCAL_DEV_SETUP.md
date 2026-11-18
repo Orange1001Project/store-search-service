@@ -1,6 +1,6 @@
 # 로컬 개발 준비
 
-> 작성 2026-11-16, 개발 레포로 옮김 2026-11-17 · 기준: [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`db/schema.sql`](../db/schema.sql) v0.3.5, [`api/openapi.yaml`](../api/openapi.yaml) v0.5
+> 기준: [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`db/schema.sql`](../db/schema.sql), [`api/openapi.yaml`](../api/openapi.yaml)
 > 파일: [`infra/docker-compose.yml`](../../infra/docker-compose.yml), [`infra/db/Dockerfile`](../../infra/db/Dockerfile), [`infra/.env.example`](../../infra/.env.example)
 > **2026-11-17 Windows 11 + Docker Desktop 29.9에서 DB를 띄워 확인**(PostgreSQL 16.16, PostGIS 3.7.0, pgvector 0.8.0, 표 20개, 업종 17·결제 2, DBeaver 접속). 막히는 곳은 8절에 더해 주세요.
 
@@ -81,7 +81,7 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 | 테이블 확인 | 우리 표 20개 + PostGIS가 만드는 `spatial_ref_sys`(로그 파티션은 따로 더 보임). `SELECT * FROM category;` → 17행 |
 | 처음부터 다시 | `docker compose down -v`(데이터 삭제) → `docker compose up -d db` |
 | 테이블 구조 바꾸기 | **지금**: `docs/db/schema.sql`을 고치고 다시 처음부터. **API 서버가 생기면**: Flyway로 옮긴다 — `schema.sql`을 `V1__init.sql`로 넣고, 그 뒤 변경은 `V2__…sql`처럼 새 파일만 더한다(이미 실행한 파일은 고치지 않음). 그때 `docker-compose.yml`의 `schema.sql` 연결 줄을 지운다 |
-| 설계 문서 맞추기 | 구조를 바꾸면 `docs/db/DB_DESIGN.md` 3-2절·`DB_TABLES.md`·`erdcloud.sql`을 같이 고친다 |
+| 설계 문서 맞추기 | 구조를 바꾸면 `docs/db/DB_TABLES.md`(컬럼표·관계 그림)를 같이 고친다 |
 | 로그 파티션 | `schema.sql`에는 2026년 11월만 있다. 12월 이후 로그를 쓰려면 같은 모양으로 그달 파티션을 만든다(나중엔 스케줄러가 두 달 앞까지 만듦) |
 
 **기본 데이터 넣기**(스크립트는 아직 없음)
@@ -113,7 +113,7 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 
 - **기존 store_id 이어받기**: 9월 원천의 store_id를 같은 가게 판단(사업자번호 + 가맹점명 + 도로명 주소)으로 맞춰 이어받는다. 평가 정답이 이 번호에 걸려 있다.
 - **벡터 22만 개**: 한 사람이 GPU로 만들어 넣고 `pg_dump -Fc`로 덤프 → Drive 공유 → 나머지는 `pg_restore`. 각자 몇 시간씩 돌리지 않는다.
-- 적재 뒤 **실제 DB 속도 측정**(1km·10km·시도 전체 검색, `docs/db/DB_DESIGN.md` 5-3절). 아직 한 번도 못 한 확인이다.
+- 적재 뒤 **실제 DB 속도 측정**(1km·10km·시도 전체 검색, `docs/db/DB_DESIGN_WHY.md` 8절). 아직 한 번도 못 한 확인이다.
 
 ## 7. 개발 순서(권장)
 
