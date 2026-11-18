@@ -2,6 +2,7 @@
 
 > 기준: `docs/product/REQUIREMENTS.md`, `docs/db/DB_TABLES.md`, `docs/api/openapi.yaml`
 > 이 문서는 **무엇으로 구성하는지**(1~5절)와 **왜 그렇게 정했는지**(6~8절)를 적는다. 표 구조는 [`db/DB_TABLES.md`](db/DB_TABLES.md), API는 [`api/API_RULES.md`](api/API_RULES.md).
+> 레포: 검색 모델 학습·평가는 AI 레포([`store-search`](https://github.com/Orange1001Project/store-search)), 서비스 코드와 문서는 이 레포. 모델·정책 값·계수는 AI 레포에서 만들어 이 레포 `seed/`와 Drive로 넘어온다([`search/SEARCH_HANDOFF.md`](search/SEARCH_HANDOFF.md)).
 > 범위: **PoC**. 공공 보안 인증(CSAP)·사내 서버는 고려하지 않는다(2026-11-13 결정). 정식 서비스로 갈 때 바뀌는 곳은 8절.
 
 ## 1. 한눈에 보기
@@ -29,7 +30,7 @@ flowchart TB
   API -->|"SQL"| D
   API -.->|"로그인 (P1)"| SO
 ```
-
+- 로컬 PC에서는 지금 ④ DB만 Docker로 띄우고, ②와 화면은 IDE에서 실행한다(Nginx 대신 화면 개발 서버, [`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md)).
 - 로컬 PC도 같은 구성으로 띄운다(로컬에선 Nginx 대신 화면 개발 서버, [`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md)).
 - 디스크에는 DB 볼륨, 원천 엑셀, 모델 파일을 둔다.
 - 실선은 서버 안 요청, 점선은 바깥 서비스다.
@@ -43,10 +44,10 @@ flowchart TB
 | ① | 웹 서버 | Nginx | HTTPS(무료 인증서 자동 갱신), React 화면 파일 전달, `/api` 요청을 ②로 전달 | 없음 | 작음 |
 | ② | API 서버 | Java 21, Spring Boot, JPA, Flyway | 검색 전체(해석 → 후보 → 점수 → 노출 → 정렬), 회원·관리자, 로그 기록(비동기), 주간 갱신 명령, 정기 작업 | 메모리: BM25 색인, 지명 사전·별칭·지명 제외·확장어, 정책 값, 관련 확률 계수, 검색 결과 10분 캐시 | 4~8GB(전환 중 두 벌) |
 | ③ | 임베딩 서버 | Python, FastAPI, sentence-transformers | `POST /embed`(문장 → 1024차원 벡터), `GET /health`, 응답에 모델 버전(IR-10) | 모델 파일(읽기만) | 3~4GB |
-| ④ | DB | PostgreSQL 16 + PostGIS 3.4 이상 + pgvector 0.8 | 가맹점(원천·수정 값·상태), 버전별 검색 사본(벡터 포함), 회원·갱신 토큰, 로그, 일별 통계 | 디스크 볼륨 | 4~8GB |
+| ④ | DB | PostgreSQL 16 + PostGIS 3.7 + pgvector 0.8(로컬에서 확인한 버전) | 가맹점(원천·수정 값·상태), 버전별 검색 사본(벡터 포함), 회원·갱신 토큰, 로그, 일별 통계 | 디스크 볼륨 | 4~8GB |
 | | 화면 | React, 네이버 지도 JS v3 | 사용자 웹(모바일 우선 반응형), 관리자 웹 | 브라우저 | |
 
-서버 사양: **8코어 · 32GB · 디스크 100GB**(합계 약 16~20GB에 여유). 이 개발 PC도 32GB라 로컬에서 전부 띄울 수 있다.
+서버 사양: **8코어 · 32GB · 디스크 100GB**(합계 약 16~20GB에 여유). 로컬은 지금 DB만 띄우므로(5절) 16GB PC로도 충분하다.
 
 ## 3. 데이터가 흐르는 길
 
@@ -64,7 +65,7 @@ flowchart TB
 
 | 것 | 형태 | 언제 쓰나 | 어디서 |
 |---|---|---|---|
-| 임베딩 모델(bge-m3 미세조정 v1, fp32) | 모델 폴더 `bge_m3_ft_mj_20261014_0743`(수 GB, git 밖·Drive) | 검색마다 검색어 1개, 갱신 때 바뀐 가게만 | ③ |
+| 임베딩 모델(bge-m3 미세조정 v1, fp32) | 모델 폴더 `bge_m3_ft_mj_20261014_0743`(약 1.1GB, fp16으로 저장하고 CPU에서 fp32로 올림. git 밖, Drive `store-search-ai/runs/finetune/`) | 검색마다 검색어 1개, 갱신 때 바뀐 가게만 | ③ |
 | 정책 값 | `seed/service/search_policy_v1.yaml` | ② 시작 때 읽고 검사(틀리면 시작 실패, FR-RNK-08) | ② 메모리 |
 | 관련 확률 계수 | `seed/service/calibrator.json` | 같음 | ② 메모리 |
 | LLM 확장어 | 미리 만든 결과(Qwen2.5-14B) → `expansion_cache` 표 | 업종 검색 때 조회만 | ④ → ② 메모리 |
@@ -78,7 +79,7 @@ flowchart TB
 
 | 환경 | 구성 |
 |---|---|
-| 로컬(각자 PC) | `docker-compose.yml`로 ③④를 띄우고 ②와 화면은 IDE에서 실행. WSL2·Docker·JDK 21 필요 |
+| 로컬(각자 PC) | `infra/docker-compose.yml`로 ④ DB만 띄우고 ②와 화면은 IDE에서 실행. ③ 임베딩 서버는 아직 없다(만들 때 주의할 점은 [`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md) 5절). WSL2·Docker·JDK 21 필요 |
 | PoC 서버 | 클라우드 VM 1대에 ①~④ 전부 Docker Compose. 클라우드 업체는 미정 |
 | 배포 | GitHub에 올리면 GitHub Actions가 이미지를 만들고 VM에서 `docker compose pull && up` |
 | DB 구조 변경 | Flyway 마이그레이션(V1 = 지금 `schema.sql`, 이후 V2, V3 … 이미 실행한 파일은 고치지 않음) |
@@ -106,7 +107,7 @@ flowchart TB
 
 ### 6-3. Spring Boot, 그리고 검색 로직을 자바로
 
-- 팀 백엔드가 Java·Spring이다(정책 17-1). 회원·보안·스케줄러·JPA가 기본으로 있다.
+- API 서버는 Java·Spring으로 만든다(정책 17-1). 일은 도메인별로 나눠 맡는다. 회원·보안·스케줄러·JPA가 기본으로 있다.
 - **검색 해석·점수 계산도 자바로 옮긴다**(정책 4-10). 임베딩 서버가 멈춰도 해석과 글자 검색은 돌아야 하기 때문이다. 해석이 파이썬 서버에 있으면 그 서버가 멈출 때 검색이 통째로 멈춘다.
 - BM25 색인과 사전을 **메모리**에 둔다. 검색마다 DB에서 사전을 읽으면 느리다.
 - BM25를 DB 글자 검색(`pg_trgm`, `ts_rank`)으로 하지 않는다. 점수 식이 평가 때 식과 달라 관련 확률 계수가 맞지 않게 된다(인계 문서 동작 9).
@@ -130,7 +131,7 @@ flowchart TB
 | 버전 전환을 트랜잭션 한 번으로 | 여러 시스템이면 반은 새 버전·반은 옛 버전 상태가 생길 수 있다 |
 | 회원·로그도 같은 곳에서 | 팀이 익숙한 SQL·JPA |
 
-버전별 검색 사본(파티션)과 월별 로그 파티션은 22만 곳을 매주 갈아끼우고 로그를 1년 뒤 통째로 지우기 위한 것이다. 행을 하나씩 지우는 것보다 칸째 떼는 것이 빠르다. 자세한 이유는 [`db/DB_DESIGN_WHY.md`](db/DB_DESIGN_WHY.md).
+버전별 검색 사본(파티션)과 월별 로그 파티션은 21~22만 곳을 매주 갈아끼우고 로그를 1년 뒤 통째로 지우기 위한 것이다. 행을 하나씩 지우는 것보다 칸째 떼는 것이 빠르다. 자세한 이유는 [`db/DB_DESIGN_WHY.md`](db/DB_DESIGN_WHY.md).
 
 ### 6-6. Redis를 쓰지 않는 이유(PoC)
 
@@ -153,7 +154,7 @@ Redis가 맡을 일은 두 가지였다. 서버가 1대라 둘 다 다른 곳에
 | Flyway | 팀원 PC와 서버의 DB 구조를 같은 순서로 맞춘다 |
 | 갱신은 화면 대신 명령 | 주 1회 일이라 화면 비용보다 명령이 싸다(화면은 P2) |
 | LLM은 1차에 안 돌림 | 상시 GPU가 비싸고, 미리 만든 확장어로 평가 수치가 이미 나왔다 |
-| 모델 파일은 git·이미지 밖 | 수 GB라 저장소·이미지가 무거워진다. 폴더 이름이 곧 버전 |
+| 모델 파일은 git·이미지 밖 | 1GB가 넘어 저장소·이미지가 무거워진다. 폴더 이름이 곧 버전 |
 
 ## 7. PoC에서 단순화한 것
 
@@ -178,8 +179,7 @@ Redis가 맡을 일은 두 가지였다. 서버가 1대라 둘 다 다른 곳에
 | 항목 | 담당 |
 |---|---|
 | 클라우드 업체(PoC 서버) | 팀 |
-| 코드 폴더 구조(도메인별로 나눌지, `backend/`·`frontend/`로 나눌지) | 팀 |
 | 임베딩 CPU 시간(검색어 1개 150ms 안인지) | 로컬에서 측정 |
 | 실제 DB 검색 속도(1km·10km·시도 전체) | 로컬에서 측정 |
-| 첫 적재의 가게 벡터 22만 개 생성 방법(GPU 한 번 + 덤프 공유 권장) | 팀 |
+| 첫 적재의 가게 벡터 21~22만 개 생성 방법(GPU 한 번 + 덤프 공유 권장) | 팀 |
 | 원천 정리가 끝나는 시점(안전장치 3% 시작) | 팀 |
