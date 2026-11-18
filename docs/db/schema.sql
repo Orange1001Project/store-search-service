@@ -1,4 +1,4 @@
--- 가맹점 검색 서비스 DB 스키마 (초안 v0.3.5, 2026-11-16) — 테이블 20개
+-- 가맹점 검색 서비스 DB 스키마 (초안) — 테이블 20개
 -- 대상: PostgreSQL 16 + PostGIS 3.4 이상 + pgvector 0.8 이상
 -- 설계 설명: docs/db/DB_DESIGN.md · 입력: docs/product/REQUIREMENTS.md 4절(DR-01~19)
 --
@@ -121,10 +121,12 @@ CREATE TABLE refresh_job (                                       -- 주간 갱�
     status              varchar(20)  NOT NULL DEFAULT 'uploaded'
                         CHECK (status IN ('uploaded', 'validating', 'diffing', 'awaiting_approval', 'approved',
                                           'embedding', 'switching', 'succeeded', 'failed', 'cancelled')),
-    progress_pct        smallint     NOT NULL DEFAULT 0 CHECK (progress_pct BETWEEN 0 AND 100),
+    current_step        varchar(10)  CHECK (current_step IN ('validate', 'diff', 'embed', 'switch')),   -- 지금(실패면 실패한) 단계. 시작 전 NULL(FR-UPD-09)
+    progress_pct        smallint     NOT NULL DEFAULT 0 CHECK (progress_pct BETWEEN 0 AND 100),   -- current_step의 진행률
     needs_approval      boolean      NOT NULL DEFAULT false,     -- 사라지는 가게가 기준 %를 넘음(FR-UPD-05)
     preview             jsonb,                                   -- 건수, 좌표 오류·충돌 목록
     error_message       text,
+    validation_errors   jsonb,                                   -- 파일 검사 실패 행 목록 [{row, column, reason}], 최대 100
     edits_applied_until timestamptz,                             -- 이 시각까지의 관리자 수정·숨김을 새 버전에 반영함(FR-UPD-07)
     started_by          bigint       NOT NULL REFERENCES admin_user (admin_id),   -- 실행한 관리자. 스크립트도 실행할 관리자 계정을 인자로 받는다
     approved_by         bigint       REFERENCES admin_user (admin_id),
@@ -220,7 +222,7 @@ CREATE TABLE store_snapshot (
     subcategory       varchar(40),                               -- 세부 업종(표준산업분류 세세분류명)
     payment_codes     varchar(10)[] NOT NULL DEFAULT '{}',       -- {card, qr}
     searchable        boolean      NOT NULL,                     -- 영업중 · 숨김 아님 · 좌표 오류 아님
-    doc_text          varchar(300) NOT NULL,                     -- 가맹점명: {상호} / 취급품목: {품목}
+    doc_text          varchar(300) NOT NULL,                     -- 가맹점명: {상호} / 취급품목: {품목}. 300자를 넘으면 품목 쪽을 잘라 넣는다
     embedding         vector(1024) NOT NULL,                     -- fp32, L2 정규화
     PRIMARY KEY (version_id, store_id)
 ) PARTITION BY LIST (version_id);
@@ -307,7 +309,7 @@ CREATE TABLE search_log (                                        -- 중심 로�
     corpus_version_id  smallint    NOT NULL,                     -- 검색한 데이터 버전(FK 없음)
     query_text         varchar(50),                              -- 검색어 없는 조회는 NULL
     input_type         varchar(15) NOT NULL
-                       CHECK (input_type IN ('typed', 'recent', 'autocomplete', 'chip', 'browse', 'place')),
+                       CHECK (input_type IN ('typed', 'recent', 'chip', 'region_view', 'region_choice', 'place_store', 'autocomplete', 'browse', 'place')),
     category_code      varchar(4),                               -- 고른 업종 칩
     payment_codes      varchar(10)[] NOT NULL DEFAULT '{}',      -- 고른 결제 칩(여러 개, 빈 목록 = 전체)
     view               varchar(4)  NOT NULL CHECK (view IN ('list', 'map')),
@@ -321,7 +323,7 @@ CREATE TABLE search_log (                                        -- 중심 로�
     n_relevant_first   smallint,                                 -- 첫 범위(1km 등)의 관련 결과 수(확장 판단 근거)
     n_relevant_final   smallint,                                 -- 최종 관련 결과 수
     message            varchar(25),                              -- 화면에 띄운 안내 문구
-    sub_message        varchar(20) CHECK (sub_message IN ('region_info', 'default_location')),   -- 작은 줄 문구
+    sub_message        varchar(20) CHECK (sub_message IN ('name_first', 'region_ambiguous', 'default_location')),   -- 작은 줄 문구
     expansion_cache_hit boolean,                                 -- 업종 의도일 때만
     results            jsonb       NOT NULL DEFAULT '[]',        -- 보여 준 가게: [{store_id, position, distance_m, score}]
     latency_ms         jsonb,                                    -- 단계별 지연(ms)

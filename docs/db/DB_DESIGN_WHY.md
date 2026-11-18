@@ -1,6 +1,6 @@
 # DB 설계 이유서
 
-> 기준: `docs/db/DB_DESIGN.md` v0.3.5(테이블 20개) · `docs/db/schema.sql`
+> 기준: `docs/db/DB_DESIGN.md`(테이블 20개) · `docs/db/schema.sql`
 > 이 문서는 **왜 이렇게 설계했는지**를 적는다. 무엇이 있는지는 [`DB_TABLES.md`](DB_TABLES.md)(테이블·컬럼 설명), 전체 명세는 [`../DB_DESIGN.md`](DB_DESIGN.md)를 본다.
 > 결정의 출처는 요구사항(`docs/product/REQUIREMENTS.md` 4절 DR)과 팀 결정(2026-11-10 ~ 11-13)이다.
 
@@ -86,7 +86,7 @@
 
 ### 3-3. 1 : 1을 두지 않은 이유
 
-- 첫 설계(v0.1)에는 `store`(상태) : `store_source`(원천 값)가 1 : 1이었다. 가게 하나에 원천 행도 하나라 **나눌 이유가 없어서** v0.3에서 한 표로 합쳤다. 조인이 줄고 갱신이 단순해진다.
+- 첫 설계에는 `store`(상태) : `store_source`(원천 값)가 1 : 1이었다. 가게 하나에 원천 행도 하나라 **나눌 이유가 없어서** 한 표로 합쳤다. 조인이 줄고 갱신이 단순해진다.
 - 약관도 `terms` + `member_terms_agreement`(N : M)였지만, 약관 묶음은 한 번에 동의하므로 **회원 행에 동의한 묶음 버전과 시각**만 둔다.
 
 ### 3-4. 관계가 있어도 FK를 일부러 안 건 곳
@@ -125,11 +125,11 @@ ERDCloud 그림에는 관계가 보이도록 스냅샷의 두 선(→ `store`, �
 | 업종·결제·제외어·확장어 | 코드나 정규화한 글자 자체 | 사람이 읽을 수 있고 중복이 자연히 막힌다 |
 | 여러 칸 PK | `store_override`(가게 + 필드), `store_snapshot`(버전 + 가게), `member_favorite`(회원 + 가게), `member_recent_search`(회원 + 검색어), 로그(번호 + 시각) | "이 조합은 하나뿐"이 업무 규칙이라 그대로 PK로. 로그는 월별 파티션이라 시각이 PK에 들어가야 한다 |
 
-## 6. 첫 설계(v0.1, 36개)와 달라진 점
+## 6. 첫 설계(36개)와 달라진 점
 
-ERDCloud에 예전에 그렸던 그림(37개)은 v0.1이다. v0.3에서 19개로 줄였다(2026-11-13 "필수 테이블만" 결정). v0.3.5에서 PoC에 Redis를 쓰지 않기로 해 갱신 토큰 표를 다시 넣어 20개다.
+ERDCloud에 예전에 그렸던 그림(37개)은 첫 설계다. "필수 테이블만" 결정으로 19개로 줄였다. PoC에 Redis를 쓰지 않기로 해 갱신 토큰 표(`member_refresh_token`)를 다시 넣어 20개다.
 
-| v0.1에 있던 표 | 지금 | 줄인 이유 |
+| 첫 설계에 있던 표 | 지금 | 줄인 이유 |
 |---|---|---|
 | `store_source` | `store`에 합침 | 1 : 1이라 나눌 이유 없음(3-3절) |
 | `source_file`, `refresh_staging_row` | `refresh_job`의 파일 정보 칸, 갱신 작업 메모리 | 파일 하나 = 작업 하나. 중간 행은 작업이 끝나면 필요 없다 |
@@ -137,7 +137,7 @@ ERDCloud에 예전에 그렸던 그림(37개)은 v0.1이다. v0.3에서 19개로
 | `admin_access_log` | 없음 | 남기지 않기로 결정(법무 답에 따라 다시 볼 수 있음) |
 | `search_result_log`, `stats_daily_query`, `event_dedup` | `search_log.results`, 로그에서 바로 계산, 통계 때 중복 제거 | 로그를 검색 로그 하나 중심으로(2-5절) |
 | `terms`, `member_terms_agreement` | `member`의 약관 버전·동의 시각 | 3-3절 |
-| `member_refresh_token` | v0.3에서 세션 저장소(Redis)로 뺐다가 v0.3.5에서 **다시 DB 표로** | PoC는 서버 1대라 Redis를 두지 않기로 함. 배포·재시작 때 로그인이 풀리지 않게 DB에 둔다 |
+| `member_refresh_token` | 필수 테이블만 남길 때 세션 저장소(Redis)로 뺐다가 **다시 DB 표로** | PoC는 서버 1대라 Redis를 두지 않기로 함. 배포·재시작 때 로그인이 풀리지 않게 DB에 둔다 |
 | `brand_alias_group`, `gazetteer_version`, `gazetteer_entry`, `branch_suffix`, `reference_revision` | 한 표씩으로 합침, 검색 서버가 계산, 표마다 `updated_at` | 데이터가 작고 관리 화면도 1차에는 없다(2-6절) |
 
 ## 7. 포기한 것과 다시 필요해지면
