@@ -82,7 +82,7 @@ flowchart TB
 | 로컬(각자 PC) | `infra/docker-compose.yml`로 ④ DB만 띄우고 ②와 화면은 IDE에서 실행. ③ 임베딩 서버는 아직 없다(만들 때 주의할 점은 [`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md) 5절). WSL2·Docker·JDK 21 필요 |
 | PoC 서버 | 클라우드 VM 1대에 ①~④ 전부 Docker Compose. 클라우드 업체는 미정 |
 | 배포 | GitHub에 올리면 GitHub Actions가 이미지를 만들고 VM에서 `docker compose pull && up` |
-| DB 구조 변경 | Flyway 마이그레이션(V1 = 지금 `schema.sql`, 이후 V2, V3 … 이미 실행한 파일은 고치지 않음) |
+| DB 구조 변경 | Flyway(`backend/src/main/resources/db/migration`). 첫 배포 전엔 V1을 고치고, 배포 후엔 V2, V3 … 새 파일만 더함 |
 | 백업 | DB 매일 덤프를 서버 밖(객체 저장소 등)에 보관, 원천 엑셀·정책 파일 보관 |
 | 첫 데이터 | 한 사람이 11월 원천을 적재하고 가게 벡터를 만든 뒤(GPU 권장) DB 덤프를 공유, 팀원은 복원 |
 

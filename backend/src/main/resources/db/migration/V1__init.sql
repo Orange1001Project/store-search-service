@@ -1,4 +1,5 @@
--- 가맹점 검색 서비스 DB 스키마 (초안) — 테이블 20개
+-- 가맹점 검색 서비스 DB 스키마 V1 (Flyway) — 테이블 20개
+-- 첫 배포 전에는 이 파일을 직접 고친다. 배포 후에는 고치지 않고 V2__*.sql을 더한다(docs/dev/LOCAL_DEV_SETUP.md 4절)
 -- 대상: PostgreSQL 16 + PostGIS 3.4 이상 + pgvector 0.8 이상
 -- 설계 설명: docs/db/DB_TABLES.md(무엇·어떻게), docs/db/DB_DESIGN_WHY.md(왜) · 입력: docs/product/REQUIREMENTS.md 4절(DR-01~19)
 --

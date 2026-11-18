@@ -1,6 +1,6 @@
 # DB 설계 이유서
 
-> 기준: 테이블 20개 · [`schema.sql`](schema.sql)
+> 기준: 테이블 20개 · [`V1__init.sql`](../../backend/src/main/resources/db/migration/V1__init.sql)
 > 이 문서는 **왜 이렇게 설계했는지**를 적는다. 무엇이 있고 어떻게 쓰는지(컬럼·규칙·조회·인덱스)는 [`DB_TABLES.md`](DB_TABLES.md)를 본다.
 > 결정의 출처는 요구사항(`docs/product/REQUIREMENTS.md` 4절 DR)과 팀 결정(2026-11-10 ~ 11-16)이다. 요구사항별 결정은 9절.
 
@@ -96,7 +96,7 @@
 | `store_snapshot` → `store`, `data_version` | 새 파티션을 붙일 때 DB가 21만 행을 다시 검사해서 **전환이 느려진다** | 전환 전에 "없는 가게 번호 0건" 검사 쿼리를 돌린다 |
 | `search_log`, `event_log` → 가게·세션·검색 | 쓰기가 매번 부모 표를 확인해 느려지고, 월별 파티션 삭제가 꼬인다. 폐업 가게를 가리키는 옛 로그도 남아야 한다 | 통계 계산 때 없는 값은 버린다 |
 
-`DB_TABLES.md` 1절 그림에는 관계가 보이도록 스냅샷의 두 선(→ `store`, → `data_version`)을 점선으로 그려 두었다. 실제 DB(`schema.sql`)에는 FK가 없다.
+`DB_TABLES.md` 1절 그림에는 관계가 보이도록 스냅샷의 두 선(→ `store`, → `data_version`)을 점선으로 그려 두었다. 실제 DB(`V1__init.sql`)에는 FK가 없다.
 
 ### 3-5. 가게–업종, 가게–결제는 N : M인데 왜 연결 표가 없나
 

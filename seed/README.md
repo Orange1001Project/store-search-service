@@ -4,7 +4,7 @@ AI 레포(store-search)에서 만든 파일을 옮겨 둔 것이다. 바꿀 때�
 
 | 파일 | 내용 | 쓰는 곳 | AI 레포 원래 위치 |
 |---|---|---|---|
-| `category/taxonomy_v1.yaml` | 온누리 업종 중분류 17개(K001~K017, 2026-11-13 공식) | `category` 표(`schema.sql`에 이미 들어 있음) | `configs/category/` |
+| `category/taxonomy_v1.yaml` | 온누리 업종 중분류 17개(K001~K017, 2026-11-13 공식) | `category` 표(Flyway `V1__init.sql`에 이미 들어 있음) | `configs/category/` |
 | `category/ksic_onnuri_v1.csv` | 산업분류(KSIC) → 업종 매핑 1,261행. 원천에 업종이 비었을 때 | 가맹점 적재 | `configs/category/` |
 | `service/brand_alias_v1.csv` | 브랜드 별칭 65행 | `brand_alias` 표 | `configs/service/` |
 | `service/search_policy_v1.yaml` | 검색 정책 값(반경, 문턱값 등) | API 서버가 파일로 읽음, 버전만 DB·로그 | `configs/service/` |
