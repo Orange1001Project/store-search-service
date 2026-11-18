@@ -1,9 +1,9 @@
 # DB 테이블 설명서
 
 > **DB가 무엇을 갖고 어떻게 쓰이는지**를 적는 기준 문서다. 왜 이렇게 설계했는지는 [`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md).
-> 실행 SQL: [`schema.sql`](schema.sql) — 정확한 컬럼·제약은 SQL이 기준이다. 아래 컬럼표는 schema.sql에서 자동으로 만들었다(둘이 다르면 SQL이 맞다). 관계 그림은 1절(GitHub에서 바로 보임). ERDCloud 그림은 발표·공유용으로 ERD 담당이 `schema.sql`에서 만든다.
+> 실행 SQL: [`V1__init.sql`](../../backend/src/main/resources/db/migration/V1__init.sql)(Flyway) — 정확한 컬럼·제약은 SQL이 기준이다(둘이 다르면 SQL이 맞다). 관계 그림은 1절(GitHub에서 바로 보임). ERDCloud 그림은 발표·공유용으로 ERD 담당이 SQL에서 만든다.
 > 입력: `docs/product/REQUIREMENTS.md`(4절 DR-01~19), `docs/product/SERVICE_POLICY.md`, `docs/search/SEARCH_HANDOFF.md`
-> 검증: 로컬 Docker(PostgreSQL 16 + PostGIS 3.7 + pgvector 0.8)에서 schema.sql 실행 확인(2026-11-17). **실제 데이터 적재·속도 측정은 아직**(12절).
+> 검증: 로컬 Docker(PostgreSQL 16 + PostGIS 3.7 + pgvector 0.8)에서 실행 확인(2026-11-17). **실제 데이터 적재·속도 측정은 아직**(12절).
 > 예전 `DB_DESIGN.md`(전체 명세)와 `erdcloud.sql`은 이 문서와 `DB_DESIGN_WHY.md`로 나눠 합쳤다(2026-11-17). 옛 파일은 AI 레포 `store-search` main에 남아 있다.
 > 표기: **PK** = 기본 키(행 하나를 집어내는 값), **FK** = 다른 테이블에 꼭 있어야 하는 값(연결선). 자료형은 PostgreSQL 기준.
 
@@ -834,10 +834,9 @@ WHERE  l.logged_at >= :from AND l.logged_at < :to;
 
 ## 11. 테이블 만들기
 
-- [`schema.sql`](schema.sql) 순서: 확장(postgis·vector·pgcrypto) → 관리자 → 참조 → 버전·갱신 → 가맹점 → 스냅샷 → 회원 → 로그 → 통계 → 기본 데이터 → 예시(버전 파티션, 로그 월 파티션).
-- 로컬에서는 `infra/docker-compose.yml`이 DB를 처음 만들 때 자동으로 실행한다([`../dev/LOCAL_DEV_SETUP.md`](../dev/LOCAL_DEV_SETUP.md)).
-- 운영에서는 Flyway 같은 마이그레이션 도구로 적용한다(JPA 자동 DDL은 끈다 — 파티션·조건부 인덱스·geography·vector를 JPA가 만들지 못한다).
-- **구조를 바꿀 때**: `schema.sql`을 고치고 → 이 문서의 컬럼표·1절 관계 그림을 맞추고 → 이유가 바뀌었으면 `DB_DESIGN_WHY.md`도 고친다.
+- [`V1__init.sql`](../../backend/src/main/resources/db/migration/V1__init.sql) 순서: 확장(postgis·vector·pgcrypto) → 관리자 → 참조 → 버전·갱신 → 가맹점 → 스냅샷 → 회원 → 로그 → 통계 → 기본 데이터 → 예시(버전 파티션, 로그 월 파티션).
+- 로컬·서버 모두 API 서버가 뜰 때 Flyway가 적용한다. JPA 자동 DDL은 끈다(파티션·조건부 인덱스·geography·vector를 JPA가 만들지 못한다).
+- **구조를 바꿀 때**: [`LOCAL_DEV_SETUP.md`](../dev/LOCAL_DEV_SETUP.md) 4절 "DB 구조 바꾸기" → 이 문서의 컬럼표·1절 관계 그림을 맞추고 → 이유가 바뀌었으면 `DB_DESIGN_WHY.md`도 고친다.
 
 ## 12. 팀이 더 정할 것
 

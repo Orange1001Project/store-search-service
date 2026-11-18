@@ -15,7 +15,7 @@
 |---|---|
 | `docs/product/` | 요구사항, 서비스 정책 |
 | `docs/ARCHITECTURE.md` | 구성과 그렇게 정한 이유 |
-| `docs/db/` | 표 설명(`DB_TABLES.md`), 설계 이유(`DB_DESIGN_WHY.md`), `schema.sql` |
+| `docs/db/` | 표 설명(`DB_TABLES.md`), 설계 이유(`DB_DESIGN_WHY.md`). 실행 SQL은 `backend/src/main/resources/db/migration/` |
 | `docs/api/` | API 공통 규칙, OpenAPI 3.0.3 명세, 명세 검사 규칙(`.spectral.yaml`) |
 | `docs/design/` | 화면 설계(그림 41장), 화면별 API 대응표(`SCREEN_API_MAP.md`) |
 | `docs/search/` | 검색 인계(AI 평가 → 서비스로 옮겨야 하는 동작) |
@@ -29,7 +29,7 @@
 
 - **git에 올리지 않는 것**: `infra/.env`(비밀번호), 원천 엑셀(사업자번호 포함), 임베딩 모델 파일, DB 덤프. 큰 파일은 Drive에 둔다.
 - **기준 문서는 한 곳에만**: 요구사항·정책·DB·API 문서는 이 레포가 기준이다. AI 레포에 남은 같은 이름의 문서는 옮기기 전 기록이다. 문서에 버전 번호·변경 이력은 적지 않고 git 기록으로 본다.
-- **모두가 쓰는 파일**(`docs/api/openapi.yaml`, `docs/db/schema.sql`)을 바꿀 때는 PR에 바뀐 점을 적고 관련 도메인 담당이 확인한다.
+- **모두가 쓰는 파일**(`docs/api/openapi.yaml`, `backend/src/main/resources/db/migration/`)을 바꿀 때는 PR에 바뀐 점을 적고 관련 도메인 담당이 확인한다.
 - 문서에 나오는 `PR #9`~`#12`, `src/`·`scripts/`·`results/`·`data/`·`colab/` 경로는 AI 레포 기준이다.
 
 ## 출처

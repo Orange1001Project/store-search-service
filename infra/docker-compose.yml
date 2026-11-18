@@ -1,5 +1,5 @@
 # 로컬 개발용 Docker Compose (docs/dev/LOCAL_DEV_SETUP.md)
-# - db: PostgreSQL 16 + PostGIS 3(2026-11 빌드 시 3.7) + pgvector 0.8 (infra/db/Dockerfile). 처음 뜰 때 docs/db/schema.sql을 실행해 테이블 20개를 만든다.
+# - db: PostgreSQL 16 + PostGIS 3(2026-11 빌드 시 3.7) + pgvector 0.8 (infra/db/Dockerfile). 빈 DB만 만든다. 표는 API 서버가 뜰 때 Flyway가 만든다(backend/src/main/resources/db/migration).
 # 임베딩 서버(docs/ARCHITECTURE.md ③)는 아직 없다. 만들 때 여기에 서비스로 더한다.
 # API 서버(Spring)와 화면(React)은 IDE에서 실행한다. Redis는 쓰지 않는다(docs/ARCHITECTURE.md 6-6).
 #
@@ -31,8 +31,6 @@ services:
       - "127.0.0.1:${DB_PORT:-5432}:5432"   # 이 PC에서만 접속
     volumes:
       - db-data:/var/lib/postgresql/data
-      # 처음 만들 때만 실행된다(볼륨이 비어 있을 때). 백엔드가 Flyway를 쓰기 시작하면 이 줄을 지운다.
-      - ../docs/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
     healthcheck:
       # -h 127.0.0.1(TCP): 처음 만들 때 초기화용 임시 서버는 TCP를 열지 않으므로, 초기화가 끝난 뒤에야 healthy가 된다
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]

@@ -1,6 +1,6 @@
 # 로컬 개발 준비
 
-> 기준: [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`db/schema.sql`](../db/schema.sql), [`api/openapi.yaml`](../api/openapi.yaml)
+> 기준: [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`V1__init.sql`](../../backend/src/main/resources/db/migration/V1__init.sql), [`api/openapi.yaml`](../api/openapi.yaml)
 > 파일: [`infra/docker-compose.yml`](../../infra/docker-compose.yml), [`infra/db/Dockerfile`](../../infra/db/Dockerfile), [`infra/.env.example`](../../infra/.env.example)
 > **2026-11-17 Windows 11 + Docker Desktop 29.9에서 DB를 띄워 확인**(PostgreSQL 16.16, PostGIS 3.7.0, pgvector 0.8.0, 표 20개, 업종 17·결제 2, DBeaver 접속). 막히는 곳은 8절에 더해 주세요.
 
@@ -67,11 +67,13 @@ cd infra
 cp .env.example .env      # POSTGRES_PASSWORD에 아무 비밀번호나(로컬 전용)
 docker compose up -d db
 docker compose ps         # db가 healthy인지
-docker compose logs db    # ERROR 없이 "init process complete"인지
+cd ../backend
+./gradlew bootRun         # 처음 뜰 때 Flyway가 표 20개와 업종·결제 기본 데이터를 만든다
 ```
 
-- DB가 처음 뜰 때(볼륨이 비어 있을 때) `docs/db/schema.sql`이 실행돼 테이블 20개와 업종·결제 기본 데이터가 생긴다.
-- 처음엔 이미지를 받고 만드느라 몇 분 걸린다.
+- Docker는 빈 DB만 만든다. 표는 API 서버가 뜰 때 Flyway가 `db/migration`의 SQL로 만든다.
+- API 서버는 `infra/.env`에서 DB 접속 값을 읽는다(환경 변수를 따로 넣지 않아도 됨).
+- 처음엔 이미지·라이브러리를 받느라 몇 분 걸린다. 테스트(`./gradlew test`)는 같은 DB 이미지를 빈 컨테이너로 띄워 V1부터 적용해 본다(Docker가 켜져 있어야 함).
 
 ## 4. DB 다루기
 
@@ -79,16 +81,26 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 |---|---|
 | 접속 | DBeaver → 새 연결 → PostgreSQL, Host `localhost`, Port `5432`, Database `storesearch`, User `storesearch`, Password는 `infra/.env`의 값. 또는 `docker compose exec db psql -U storesearch -d storesearch` |
 | 테이블 확인 | 우리 표 20개 + PostGIS가 만드는 `spatial_ref_sys`(로그 파티션은 따로 더 보임). `SELECT * FROM category;` → 17행 |
-| 처음부터 다시 | `docker compose down -v`(데이터 삭제) → `docker compose up -d db` |
-| 테이블 구조 바꾸기 | **지금**: `docs/db/schema.sql`을 고치고 다시 처음부터. **API 서버가 생기면**: Flyway로 옮긴다 — `schema.sql`을 `V1__init.sql`로 넣고, 그 뒤 변경은 `V2__…sql`처럼 새 파일만 더한다(이미 실행한 파일은 고치지 않음). 그때 `docker-compose.yml`의 `schema.sql` 연결 줄을 지운다 |
-| 설계 문서 맞추기 | 구조를 바꾸면 `docs/db/DB_TABLES.md`(컬럼표·관계 그림)를 같이 고친다 |
-| 로그 파티션 | `schema.sql`이 2026-11 ~ 2027-12를 만들어 둔다. 그 뒤는 스케줄러가 두 달 앞까지 만든다(스케줄러는 아직 없음) |
+| 처음부터 다시 | `docker compose down -v`(데이터 삭제) → `docker compose up -d db` → API 서버 실행 |
+| 테이블 구조 바꾸기 | 아래 "DB 구조 바꾸기" |
+| 로그 파티션 | V1이 2026-11 ~ 2027-12를 만들어 둔다. 그 뒤는 스케줄러가 두 달 앞까지 만든다(스케줄러는 아직 없음) |
+
+**DB 구조 바꾸기**
+
+DB는 각자 PC에 따로 있고, 합치는 것은 DB가 아니라 git의 SQL 파일이다. 남이 바꾼 구조는 git으로 받아 API 서버를 실행하면 내 DB에도 들어간다.
+
+| 시기 | 방법 |
+|---|---|
+| **첫 배포 전(지금)** | `V1__init.sql`을 직접 고친다. 받은 사람은 API 서버가 "checksum mismatch"로 멈추면 `docker compose down -v` 후 다시 띄운다 |
+| **첫 배포 후** | V1은 고치지 않는다. 바꿀 것만 새 파일로 더한다(`V2__add_x.sql`, `V3__…`). 번호가 겹치면 나중에 머지하는 쪽이 번호를 올린다 |
+
+어느 쪽이든 PR에 `DB_TABLES.md`(컬럼표·관계 그림)를 같이 고친다.
 
 **기본 데이터 넣기**(스크립트는 아직 없음)
 
 | 데이터 | 원본 | 넣을 표 |
 |---|---|---|
-| 업종 17개, 결제 2개 | `schema.sql`(이미 들어감) | `category`, `payment_method` |
+| 업종 17개, 결제 2개 | V1(이미 들어감) | `category`, `payment_method` |
 | 산업분류 → 업종 매핑 | `seed/category/ksic_onnuri_v1.csv` | 적재 때 사용 |
 | 브랜드 별칭 | `seed/service/brand_alias_v1.csv` | `brand_alias` |
 | 지명 사전 | AI 레포 `data/geo/gazetteer_v1.parquet`(Drive) | `gazetteer`(`dict_version` = `gazetteer_v1`) |
@@ -118,7 +130,7 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 ## 7. 개발 순서(권장)
 
 1. 1절 확인 → 2절 설치 → 3절로 DB 띄우기
-2. API 서버 뼈대 + DB 연결, `schema.sql` → Flyway V1
+2. API 서버 뼈대 + DB 연결(Flyway V1) ✅
 3. 기본 데이터 넣기 스크립트, 첫 적재(6절), DB 덤프 공유
 4. 임베딩 서버(5절)
 5. 평가 "정답 결과 파일" → 자바 검색 이식과 비교 테스트
@@ -130,7 +142,7 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 |---|---|
 | Docker Desktop이 `WSL not installed` | 관리자 PowerShell에서 `wsl --install --no-distribution` → 재부팅 |
 | 이미지 내려받기 실패·인증서 오류 | 회사 프록시·SSL 검사(1절 ⛔3). Docker에 프록시 설정, 회사 루트 인증서 등록 |
-| `db`가 뜨다가 멈춤, 로그에 `schema.sql` 오류 | `docker compose logs db`. 스키마 오류면 고치고 `down -v` 뒤 다시 |
+| API 서버가 Flyway 오류로 멈춤 | SQL 오류면 고치고, `checksum mismatch`(받은 V1이 바뀜)면 `docker compose down -v` 뒤 다시 |
 | `extension "vector" is not available` | `infra/db/Dockerfile`로 이미지가 만들어졌는지(`docker compose build db`) |
 | pgvector 설치 중 `bullseye-pgdg Release` 404 | Debian 11 기반 이미지(`postgis/postgis:16-*`)를 쓰고 있다. `infra/db/Dockerfile`은 Debian 12 기반 pgvector 이미지를 쓴다 |
 | `postgis-3.so: undefined symbol` | PostGIS가 이미지의 PostgreSQL보다 새 판으로 빌드됨. Dockerfile에서 `postgresql-16`도 같이 설치(올림)하는지 확인 → `docker compose build --no-cache db` → `down -v` 뒤 다시 |

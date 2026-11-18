@@ -227,4 +227,4 @@
 | 핀 묶음 값, 안내 문구 최종안, 데스크톱 화면(6-5, 8-3) | 화면설계 |
 | 알람 기준(14-6) | 운영 준비 |
 | 온라인 검증 지표(19-2) | 출시 전 |
-| DB 테이블 설계 | 끝(`docs/db/DB_TABLES.md`, `docs/db/DB_DESIGN_WHY.md`, `docs/db/schema.sql`) |
+| DB 테이블 설계 | 끝(`docs/db/DB_TABLES.md`, `docs/db/DB_DESIGN_WHY.md`, `backend/src/main/resources/db/migration/V1__init.sql`) |
