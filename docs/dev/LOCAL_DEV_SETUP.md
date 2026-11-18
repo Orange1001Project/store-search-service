@@ -82,7 +82,7 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 | 처음부터 다시 | `docker compose down -v`(데이터 삭제) → `docker compose up -d db` |
 | 테이블 구조 바꾸기 | **지금**: `docs/db/schema.sql`을 고치고 다시 처음부터. **API 서버가 생기면**: Flyway로 옮긴다 — `schema.sql`을 `V1__init.sql`로 넣고, 그 뒤 변경은 `V2__…sql`처럼 새 파일만 더한다(이미 실행한 파일은 고치지 않음). 그때 `docker-compose.yml`의 `schema.sql` 연결 줄을 지운다 |
 | 설계 문서 맞추기 | 구조를 바꾸면 `docs/db/DB_TABLES.md`(컬럼표·관계 그림)를 같이 고친다 |
-| 로그 파티션 | `schema.sql`에는 2026년 11월만 있다. 12월 이후 로그를 쓰려면 같은 모양으로 그달 파티션을 만든다(나중엔 스케줄러가 두 달 앞까지 만듦) |
+| 로그 파티션 | `schema.sql`이 2026-11 ~ 2027-12를 만들어 둔다. 그 뒤는 스케줄러가 두 달 앞까지 만든다(스케줄러는 아직 없음) |
 
 **기본 데이터 넣기**(스크립트는 아직 없음)
 
@@ -131,7 +131,6 @@ docker compose logs db    # ERROR 없이 "init process complete"인지
 | Docker Desktop이 `WSL not installed` | 관리자 PowerShell에서 `wsl --install --no-distribution` → 재부팅 |
 | 이미지 내려받기 실패·인증서 오류 | 회사 프록시·SSL 검사(1절 ⛔3). Docker에 프록시 설정, 회사 루트 인증서 등록 |
 | `db`가 뜨다가 멈춤, 로그에 `schema.sql` 오류 | `docker compose logs db`. 스키마 오류면 고치고 `down -v` 뒤 다시 |
-| 스키마 오류 뒤에도 `healthy`로 보임 | 처음 실행이 중간에 멈춰도 DB는 뜬다. 반드시 `docker compose logs db`에서 `ERROR` 없이 `init process complete`인지 본다 |
 | `extension "vector" is not available` | `infra/db/Dockerfile`로 이미지가 만들어졌는지(`docker compose build db`) |
 | pgvector 설치 중 `bullseye-pgdg Release` 404 | Debian 11 기반 이미지(`postgis/postgis:16-*`)를 쓰고 있다. `infra/db/Dockerfile`은 Debian 12 기반 pgvector 이미지를 쓴다 |
 | `postgis-3.so: undefined symbol` | PostGIS가 이미지의 PostgreSQL보다 새 판으로 빌드됨. Dockerfile에서 `postgresql-16`도 같이 설치(올림)하는지 확인 → `docker compose build --no-cache db` → `down -v` 뒤 다시 |

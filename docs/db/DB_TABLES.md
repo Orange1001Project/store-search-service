@@ -517,7 +517,7 @@ erDiagram
 | `radius_stage` | 범위 단계 | varchar(10) |  | 값: 1km, 10km, area, viewport |
 | `n_relevant_first` | 첫 범위 관련 수 | smallint |  | 첫 범위(1km 등)의 관련 결과 수(확장 판단 근거) |
 | `n_relevant_final` | 최종 관련 수 | smallint |  | 최종 관련 결과 수 |
-| `message` | 안내 문구 | varchar(25) |  | 화면에 띄운 안내 문구 |
+| `message` | 안내 문구 코드 | varchar(25) |  | 화면에 띄운 큰 안내 문구의 코드(API `MessageCode`, 예: no_result). 문장은 저장하지 않음 |
 | `sub_message` | 보조 문구 | varchar(20) |  | 작은 줄 문구 · 값: name_first, region_ambiguous, default_location |
 | `expansion_cache_hit` | 확장어 캐시 적중 | boolean |  | 업종 의도일 때만 |
 | `results` | 보여 준 가게 목록 | jsonb |  | 보여 준 가게: [{store_id, position, distance_m, score}] |
@@ -586,7 +586,7 @@ erDiagram
 [검색]       활성 버전 번호로 store_snapshot 조회(범위 + 벡터) → 점수·노출·정렬은 앱 → search_log 한 줄 기록(비동기)
 [회원]       가입 = member(약관 버전·동의 시각) + member_auth
              탈퇴 = member를 withdrawn으로(닉네임·이메일·약관 버전·동의 시각 비움) + 로그인 수단·갱신 토큰·최근 검색어·즐겨찾기 삭제
-[로그]       매일 새벽 전날 통계 요약(stats_daily) → 매달 다음 달 파티션 생성, 13개월 전 파티션 삭제
+[로그]       매일 새벽 전날 통계 요약(stats_daily) → 매달 두 달 앞 파티션 생성, 1년 지난 달 파티션 삭제
 ```
 
 ### 8-2. 가게 상태

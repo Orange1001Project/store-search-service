@@ -412,10 +412,16 @@ INSERT INTO category (category_code, name, sort_order) VALUES
 -- ALTER TABLE store_snapshot DETACH PARTITION store_snapshot_v5 CONCURRENTLY;   -- 트랜잭션 밖에서. 부모 표를 길게 잠그지 않아 검색이 멈추지 않는다(NFR-OPS-02)
 -- DROP TABLE store_snapshot_v5;
 
--- 로그 파티션(한국 시간 2026년 11월). 스케줄러가 매달 두 달 앞 것까지 미리 만들고, 1년 지난 달은 DROP
-CREATE TABLE search_log_2026_11 PARTITION OF search_log
-    FOR VALUES FROM ('2026-11-01 00:00:00+09') TO ('2026-12-01 00:00:00+09');
-CREATE TABLE event_log_2026_11 PARTITION OF event_log
-    FOR VALUES FROM ('2026-11-01 00:00:00+09') TO ('2026-12-01 00:00:00+09');
+-- 로그 파티션(한국 시간 월 단위, 2026-11 ~ 2027-12). 스케줄러가 생기면 매달 두 달 앞 것까지 미리 만들고, 1년 지난 달은 DROP
+DO $$
+DECLARE m date;
+BEGIN
+    FOR m IN SELECT generate_series(date '2026-11-01', date '2027-12-01', interval '1 month')::date LOOP
+        EXECUTE format('CREATE TABLE search_log_%s PARTITION OF search_log FOR VALUES FROM (%L) TO (%L)',
+                       to_char(m, 'YYYY_MM'), m || ' 00:00:00+09', (m + interval '1 month')::date || ' 00:00:00+09');
+        EXECUTE format('CREATE TABLE event_log_%s PARTITION OF event_log FOR VALUES FROM (%L) TO (%L)',
+                       to_char(m, 'YYYY_MM'), m || ' 00:00:00+09', (m + interval '1 month')::date || ' 00:00:00+09');
+    END LOOP;
+END $$;
 -- DEFAULT 파티션은 두지 않는다: 그 달 행이 DEFAULT에 들어가면 다음 달 파티션을 만들 수 없고 월 단위 삭제에서도 빠진다.
 -- 대신 스케줄러가 두 달 앞 파티션까지 미리 만들고, 다음 달 파티션이 없으면 알람.

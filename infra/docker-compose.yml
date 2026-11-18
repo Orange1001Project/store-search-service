@@ -34,7 +34,8 @@ services:
       # 처음 만들 때만 실행된다(볼륨이 비어 있을 때). 백엔드가 Flyway를 쓰기 시작하면 이 줄을 지운다.
       - ../docs/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # -h 127.0.0.1(TCP): 처음 만들 때 초기화용 임시 서버는 TCP를 열지 않으므로, 초기화가 끝난 뒤에야 healthy가 된다
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
