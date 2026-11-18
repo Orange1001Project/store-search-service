@@ -1,0 +1,33 @@
+# 로컬 기본값은 infra/docker-compose.yml의 DB(localhost:5432, storesearch)에 맞춘다.
+# 비밀번호는 파일에 적지 않는다: 환경 변수 DB_PASSWORD에 infra/.env의 POSTGRES_PASSWORD 값을 넣고 실행한다.
+spring:
+  application:
+    name: storesearch
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:storesearch}
+    username: ${DB_USER:storesearch}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 표는 JPA가 만들지 않는다(파티션·조건부 인덱스·geography·vector). 구조 변경은 Flyway로만.
+      ddl-auto: none
+  flyway:
+    # V1 = docs/db/schema.sql. 로컬 DB는 Docker가 처음 만들 때 이미 schema.sql을 실행하므로
+    # Flyway는 그 상태를 V1으로 보고, 표를 바꿀 때는 db/migration/에 V2__설명.sql부터 추가한다.
+    baseline-on-migrate: true
+    baseline-version: 1
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # 각 항목(db 등)의 UP·DOWN만 보이고, 경로·접속 정보 같은 세부 내용은 숨긴다
+      show-components: always
+      show-details: never
