@@ -18,17 +18,32 @@ com.storesearch
 ├─ store/        가맹점 원천·상태(store, store_override), GET /stores/{id}
 ├─ search/       검색·지도 조회·다음 페이지, 검색어 해석·BM25·점수(메모리)
 ├─ member/       소셜 로그인·토큰·내 정보·최근 검색어·관심 가맹점
-├─ admin/        관리자 로그인·가맹점 수정·숨김·통계
+├─ admin/        관리자 계정·로그인. 관리자 API 컨트롤러(가맹점 수정·통계 등)는 여기 두되 일은 해당 기능 service에 맡긴다
 ├─ refresh/      데이터 버전·적재·주간 갱신(명령으로 실행)
-└─ log/          검색 로그·행동 이벤트
+└─ log/          검색 로그·행동 이벤트·통계 요약
 
-각 기능 폴더 안(필요한 것만 만든다):
+각 기능 폴더 안(필요한 것만, 첫 클래스를 만들 때 폴더도 만든다):
   controller/  생성된 *Api 인터페이스를 구현. 요청 받기 → service 호출 → 응답. 로직 없음
-  service/     업무 규칙과 트랜잭션(@Transactional). entity ↔ API DTO 변환도 여기서
+  service/     업무 규칙과 트랜잭션(@Transactional). entity ↔ API DTO 변환도 여기서(길어지면 같은 폴더에 XxxMapper)
   repository/  DB 읽고 쓰기. 보통은 Spring Data JPA 인터페이스, PostGIS·pgvector 쿼리는 JdbcTemplate
   entity/      DB 표 한 행 = 객체 하나(JPA @Entity). API로 그대로 내보내지 않는다
   dto/         기능 안에서만 쓰는 값(조회 결과, 서비스 사이 전달). API 요청·응답 DTO는 명세에서 생성됨
+  config/      그 기능만 쓰는 설정(@ConfigurationProperties 등). 여러 기능이 쓰면 common/
+  job/         예약 작업(@Scheduled: 하루 통계, 로그 파티션, 만료 토큰 삭제 등)
 ```
+
+**표는 주인 기능이 하나다.** entity·repository는 주인 기능에만 만들고, 다른 기능은 주인의 service를 부른다(같은 표 entity를 두 곳에 만들지 않는다).
+
+| 기능 | 표 |
+|---|---|
+| reference | category, payment_method, brand_alias, gazetteer, place_exclusion, expansion_cache |
+| store | store, store_override, store_snapshot |
+| refresh | data_version, refresh_job |
+| member | member, member_auth, member_refresh_token, member_recent_search, member_favorite |
+| admin | admin_user |
+| log | search_log, event_log, stats_daily |
+
+예외: search는 검색 속도 때문에 store_snapshot을 자기 JdbcTemplate 쿼리로 **읽기만** 한다(범위 + 벡터). 쓰기(새 버전 만들기, 수정 반영)는 refresh·store가 한다.
 
 API 요청·응답 DTO와 컨트롤러 인터페이스는 `docs/api/openapi.yaml`에서 빌드 때 생성된다(`build/generated/openapi`, 패키지 `com.storesearch.api`·`com.storesearch.api.model`). 직접 만들지 않는다.
 
@@ -49,6 +64,7 @@ API 요청·응답 DTO와 컨트롤러 인터페이스는 `docs/api/openapi.yaml
 
 - 의존 방향은 controller → service → repository 한쪽으로만. controller가 repository를 직접 부르지 않는다.
 - 다른 기능의 데이터가 필요하면 그 기능의 **service**를 부른다(남의 repository·entity를 직접 쓰지 않는다). 기능 사이 연결은 JPA 관계 대신 ID(예: 관심 가맹점의 store_id)로.
+- 관리자 화면용 API도 같다: 예) 가맹점 숨김 `AdminStoresController`(admin) → `StoreService.hide(...)`(store). 숨김 규칙은 store에 한 번만 있다.
 - 의존성은 생성자 주입(`private final` 필드 + 생성자). `@Autowired` 필드 주입은 쓰지 않는다.
 - entity는 API로 내보내지 않는다(표가 바뀌면 API가 같이 깨지고, 내부 열이 새어 나감).
 - 표 구조는 Flyway SQL(`src/main/resources/db/migration`)로만 바꾼다. JPA가 표를 만들지 않는다(`ddl-auto: none`).
