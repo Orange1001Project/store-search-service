@@ -15,8 +15,22 @@ spring:
       # 표는 JPA가 만들지 않는다(파티션·조건부 인덱스·geography·vector). 구조는 Flyway(db/migration)로만.
       ddl-auto: none
 
+  jackson:
+    # API 시각은 KST 오프셋(+09:00)으로 쓴다(API_RULES.md 1절). DB는 UTC
+    time-zone: Asia/Seoul
+
 server:
   port: 8080
+
+app:
+  cookie:
+    # 인증·세션 쿠키의 Secure. 브라우저는 http://localhost에서도 Secure 쿠키를 받는다
+    secure: true
+
+logging:
+  pattern:
+    # 서버 로그 줄마다 추적 ID(응답 헤더 X-Trace-Id와 같은 값)
+    correlation: "[%X{traceId:-}] "
 
 management:
   endpoints:
