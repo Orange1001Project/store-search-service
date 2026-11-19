@@ -79,7 +79,7 @@ flowchart TB
 
 | 환경 | 구성 |
 |---|---|
-| 로컬(각자 PC) | `infra/docker-compose.yml`로 ④ DB만 띄우고 ②와 화면은 IDE에서 실행. ③ 임베딩 서버는 아직 없다(만들 때 주의할 점은 [`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md) 5절). WSL2·Docker·JDK 21 필요 |
+| 로컬(각자 PC) | `infra/docker-compose.yml`로 ④ DB만 띄우고 ②와 화면은 IDE에서 실행. ③ 임베딩 서버도 Docker([`LOCAL_DEV_SETUP.md`](dev/LOCAL_DEV_SETUP.md) 5절). WSL2·Docker·JDK 21 필요 |
 | PoC 서버 | 클라우드 VM 1대에 ①~④ 전부 Docker Compose. 클라우드 업체는 미정 |
 | 배포 | GitHub에 올리면 GitHub Actions가 이미지를 만들고 VM에서 `docker compose pull && up` |
 | DB 구조 변경 | Flyway(`backend/src/main/resources/db/migration`). 첫 배포 전엔 V1을 고치고, 배포 후엔 V2, V3 … 새 파일만 더함 |
@@ -179,7 +179,7 @@ Redis가 맡을 일은 두 가지였다. 서버가 1대라 둘 다 다른 곳에
 | 항목 | 담당 |
 |---|---|
 | 클라우드 업체(PoC 서버) | 팀 |
-| 임베딩 CPU 시간(검색어 1개 150ms 안인지) | 로컬에서 측정 |
+| 임베딩 CPU 시간(검색어 1개 150ms 안인지) | 로컬 PC p50 65ms·p95 94ms(2026-11-19). 서버 사양에서 다시 잰다 |
 | 실제 DB 검색 속도(1km·10km·시도 전체) | 로컬에서 측정 |
 | 첫 적재의 가게 벡터 21~22만 개 생성 방법(GPU 한 번 + 덤프 공유 권장) | 팀 |
 | 원천 정리가 끝나는 시점(안전장치 3% 시작) | 팀 |

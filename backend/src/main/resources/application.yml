@@ -26,6 +26,10 @@ app:
   cookie:
     # 인증·세션 쿠키의 Secure. 브라우저는 http://localhost에서도 Secure 쿠키를 받는다
     secure: true
+  embedding:
+    url: ${EMBEDDING_URL:http://127.0.0.1:8001}
+    search-timeout: 150ms   # 넘으면 그 검색은 글자 검색만(FR-FBK-01)
+    batch-timeout: 120s     # 적재·갱신 묶음(최대 64개)
 
 logging:
   pattern:

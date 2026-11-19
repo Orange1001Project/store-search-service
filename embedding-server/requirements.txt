@@ -1,0 +1,6 @@
+# 학습·평가 때와 같은 버전(model_manifest.json environment). transformers 4.x로는 모델을 읽지 못한다.
+# torch(CPU 판)는 Dockerfile에서 따로 설치한다.
+transformers==5.18.0
+sentence-transformers==5.7.0
+fastapi==0.115.6
+uvicorn==0.34.0
