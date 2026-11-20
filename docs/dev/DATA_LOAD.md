@@ -2,7 +2,7 @@
 
 > 11월 원천(`20261113_온누리가맹점리스트.xlsx`)을 데이터 버전 1로 넣는다. 벡터 22만 개는 CPU로 몇 시간이라 Colab GPU에서 만든다.
 > 규칙(같은 가게 판단·합치기·좌표 오류·id 이어받기): [`DB_TABLES.md`](../db/DB_TABLES.md) 3절. 코드: `backend/.../refresh/`(순서), `store/service/`(값 계산).
-> 2026-11-20 이 PC에서 확인: prepare 약 1분 40초, import(시험 벡터) 약 3분 30초, 스냅샷 1.3GB.
+> 2026-11-20 이 PC + Colab T4로 실제 적재: prepare 약 95초, Colab 약 10분, import 약 2분 40초, 스냅샷 1.3GB. 표본 32개 Colab ↔ 로컬 서버 최소 코사인 0.99999992.
 
 ## 한눈에
 
