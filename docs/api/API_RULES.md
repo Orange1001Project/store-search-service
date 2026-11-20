@@ -205,7 +205,8 @@
 
 ## 12. 코드 생성
 
-- openapi-generator `-g spring --library spring-boot`, 옵션 `interfaceOnly=true, useSpringBoot3=true, useTags=true, openApiNullable=false, skipDefaultInterface=true, useBeanValidation=true`. 7.10.0으로 오류 없이 생성됨(컴파일은 백엔드 저장소에서).
+- 백엔드는 빌드할 때 생성한다(`backend/build.gradle`의 `openApiGenerate`, openapi-generator 7.27.0 `spring`). 옵션 `interfaceOnly, useSpringBoot4, useJackson3, useTags, openApiNullable=false, skipDefaultInterface, useBeanValidation, containerDefaultToNull`. 결과는 `build/`에만 생기고 git에 올리지 않는다. 컨트롤러는 생성된 `com.storesearch.api.*Api` 인터페이스를 구현한다.
+- 빈 값: 생성된 DTO는 선택 필드에만 `@Nullable`이 붙는다. 서버는 그 필드가 null이면 빼고, 필수 필드(필수 + nullable 포함)는 null이어도 넣는다(2절 규칙).
 - 경로·쿼리의 enum(`OverrideField`, `LifecycleStatus`, 통계 `view`·`intent`, `provider`)은 값이 소문자·camelCase라 Spring 기본 변환과 다르다. 각 enum의 `fromValue`를 쓰는 `Converter`를 등록한다.
 - 인증 쿠키는 메서드 파라미터로 나오지 않는다(보안 설정에서 읽음). `StoreOverrideRequest.value`, `FieldValue.sourceValue`·`overrideValue`는 field에 따라 모양이 달라 `Object`로 나온다(서버가 field별로 검사).
 - YAML 한 줄 객체(`{ … }`) 안 값에 쉼표가 있으면 따옴표로 묶는다. 안 묶으면 값이 잘려 키가 생긴다.

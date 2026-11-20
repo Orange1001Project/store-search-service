@@ -9,7 +9,7 @@
 | 구성 요소 | 로컬에서 | 포트 | 상태 |
 |---|---|---|---|
 | DB(PostgreSQL + PostGIS + pgvector) | Docker(`db`) | 127.0.0.1:5432 | ✅ 있음 |
-| 임베딩 서버 | Docker(만들 예정) | 127.0.0.1:8001 | 아직 없음([아키텍처](../ARCHITECTURE.md) ③) |
+| 임베딩 서버 | Docker(`embedding`) | 127.0.0.1:8001 | ✅ 있음(5절) |
 | API 서버(Spring Boot) | IDE에서 실행 | 8080 | 아직 없음 |
 | 화면(React) | `npm run dev` | 5173 등 | 아직 없음 |
 | Nginx | 로컬에선 안 씀(화면 개발 서버가 `/api`를 8080으로 넘김) | | |
@@ -110,14 +110,17 @@ DB는 각자 PC에 따로 있고, 합치는 것은 DB가 아니라 git의 SQL �
 
 검색 정책 값(`seed/service/search_policy_v1.yaml`)과 관련 확률 계수(`seed/service/calibrator.json`)는 DB가 아니라 API 서버가 파일로 읽는다([인계 문서](../search/SEARCH_HANDOFF.md) 1절).
 
-## 5. 임베딩 서버(예정)
+## 5. 임베딩 서버
 
-아직 없다. 만들 때 확인할 것:
+`embedding-server/`(FastAPI, CPU). `POST /embed`(문장 최대 64개 → 1024차원 정규화 벡터 + 모델 버전), `GET /health`.
 
-- 모델: bge-m3 미세조정 v1(`bge_m3_ft_mj_20261014_0743`, 약 1.1GB, fp16으로 저장됨). Drive `store-search-ai/runs/finetune/`에서 **폴더째**(zip) 받는다. 파일을 하나씩 받으면 이름이 뒤섞이거나 `tokenizer.json`·하위 폴더가 빠진다. 모델 파일은 git에 올리지 않는다.
-- 라이브러리는 학습 때 버전(torch 2.11, transformers 5.18, sentence-transformers 5.7)에 맞춘다. 4.x로는 모델을 읽지 못한다.
-- 서버는 **fp32를 명시**해서 올린다(명시하지 않으면 저장된 fp16으로 올라감).
-- 검색어 1개 150ms 안(FR-FBK-01), 평가 때 점수와 같은지 비교.
+1. 모델 bge-m3 미세조정 v1(`bge_m3_ft_mj_20261014_0743`, 약 1.1GB)을 Drive `store-search-ai/runs/finetune/`에서 **폴더째**(zip) 받아 푼다. 파일을 하나씩 받으면 `tokenizer.json`·하위 폴더가 빠진다. git에 올리지 않는다.
+2. `infra/.env`의 `EMBEDDING_MODEL_DIR`에 그 폴더 경로(비우면 저장소 `models/` 아래)
+3. `docker compose up -d`(DB + 임베딩). 처음엔 이미지(torch 포함) 만드느라 몇 분. `curl http://127.0.0.1:8001/health`
+
+- 라이브러리는 학습 때 버전(torch 2.11, transformers 5.18, sentence-transformers 5.7), 모델은 **fp32**로 올린다(명시하지 않으면 저장된 fp16).
+- API 서버는 `infra/.env`의 `EMBEDDING_URL`로 부른다. `localhost` 대신 `127.0.0.1`(Windows에서 localhost는 IPv6를 먼저 시도해 1~2초 늦어짐).
+- 2026-11-19 이 PC에서 확인: AI 레포와 같은 벡터(코사인 1.000000), 검색어 1개 p50 65ms·p95 94ms(150ms 안), 묶음 약 18개/초(가게 21만 개 약 3.4시간 → 전체 벡터는 Colab).
 
 ## 6. 가맹점 첫 적재(다음 단계)
 
@@ -132,7 +135,7 @@ DB는 각자 PC에 따로 있고, 합치는 것은 DB가 아니라 git의 SQL �
 1. 1절 확인 → 2절 설치 → 3절로 DB 띄우기
 2. API 서버 뼈대 + DB 연결(Flyway V1) ✅
 3. 기본 데이터 넣기 스크립트, 첫 적재(6절), DB 덤프 공유
-4. 임베딩 서버(5절)
+4. 임베딩 서버(5절) ✅
 5. 평가 "정답 결과 파일" → 자바 검색 이식과 비교 테스트
 6. API(P0) → 화면
 

@@ -1,11 +1,12 @@
 # 로컬 개발용 Docker Compose (docs/dev/LOCAL_DEV_SETUP.md)
 # - db: PostgreSQL 16 + PostGIS 3(2026-11 빌드 시 3.7) + pgvector 0.8 (infra/db/Dockerfile). 빈 DB만 만든다. 표는 API 서버가 뜰 때 Flyway가 만든다(backend/src/main/resources/db/migration).
-# 임베딩 서버(docs/ARCHITECTURE.md ③)는 아직 없다. 만들 때 여기에 서비스로 더한다.
+# - embedding: 임베딩 추론 서버(embedding-server/, CPU). 모델 폴더는 .env의 EMBEDDING_MODEL_DIR(비우면 저장소 models/ 아래, git 제외)
 # API 서버(Spring)와 화면(React)은 IDE에서 실행한다. Redis는 쓰지 않는다(docs/ARCHITECTURE.md 6-6).
 #
 # 사용: infra 폴더에서
-#   cp .env.example .env          # POSTGRES_PASSWORD 채우기
-#   docker compose up -d db       # DB만
+#   cp .env.example .env          # POSTGRES_PASSWORD, EMBEDDING_MODEL_DIR 채우기
+#   docker compose up -d db       # DB만(화면만 개발할 때)
+#   docker compose up -d          # DB + 임베딩 서버
 name: storesearch
 
 services:
@@ -37,6 +38,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
+
+  embedding:
+    build: ../embedding-server
+    image: storesearch-embedding:cpu
+    environment:
+      TORCH_THREADS: ${EMBEDDING_THREADS:-0}   # 0 = torch 기본(코어 수)
+    ports:
+      - "127.0.0.1:${EMBEDDING_PORT:-8001}:8001"   # 이 PC에서만 접속
+    volumes:
+      - ${EMBEDDING_MODEL_DIR:-../models/bge_m3_ft_mj_20261014_0743}:/models/model:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 6
     restart: unless-stopped
 
 volumes:
