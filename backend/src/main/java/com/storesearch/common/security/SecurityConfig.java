@@ -2,6 +2,7 @@ package com.storesearch.common.security;
 
 import com.storesearch.api.model.ErrorCode;
 import com.storesearch.common.error.ErrorResponseWriter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,6 +22,7 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
  * 인증이 없으면 401 AUTH_REQUIRED, CSRF가 틀리면 403 CSRF_FAILED(본문은 공통 오류 형식).
  */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication   // 적재 명령(app.job)처럼 웹 서버 없이 뜰 때는 만들지 않는다
 public class SecurityConfig {
 
 	@Bean

@@ -28,3 +28,6 @@ __pycache__/
 *.iml
 .DS_Store
 Thumbs.db
+
+# 적재 작업 파일(Colab 입력·벡터·보고서). Drive에 둔다
+/data/
