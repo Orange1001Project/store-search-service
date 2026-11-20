@@ -1,7 +1,20 @@
 # DB 검색 조회 속도 측정
 
 > 왜: HNSW 없이 "범위로 거른 뒤 정확 계산"이 충분히 빠른지([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절)를 실제 데이터(데이터 버전 1, 검색 대상 224,677곳)로 확인한다.
-> 노트북: [`infra/colab/db_search_bench.ipynb`](../../infra/colab/db_search_bench.ipynb) — Colab VM에 PostgreSQL 16 + PostGIS + pgvector를 깔고 덤프를 복원해 잰다(로컬 PC 발열을 피하려고).
+> 노트북: [`infra/colab/db_search_bench_1.ipynb`](../../infra/colab/db_search_bench_1.ipynb) — Colab VM에 PostgreSQL 16 + PostGIS + pgvector를 깔고 덤프를 복원해 잰다(로컬 PC 발열을 피하려고).
+
+## 지금까지 결론(2026-11-20, 1~3차)
+
+| 회차 | 노트북 | 알게 된 것 |
+|---|---|---|
+| 1차 | `db_search_bench_1` | 넓은 범위(반경 10km·시도·넓은 화면)가 p95 480~740ms. 원인은 계산이 아니라 `vector(1024)`를 TOAST에서 꺼내는 비용(행당 버퍼 약 9번) |
+| 2차 | `db_storage_bench_2` | 벡터를 행 안에(`STORAGE PLAIN`) 두면 3~5배 빨라짐. halfvec는 더 빠르고 작지만 순위가 조금 바뀜 |
+| 3차 | `db_rerank_bench_3` | **halfvec 상위 100 → fp32 상위 50 + 법정동 코드 순 적재(`rr_sorted`)**가 가장 빠름(시도 p95 90ms, 가장 무거운 시도 74ms). 쿼리에 동점 기준(store_id)이 빠져 있던 것을 찾음 |
+| 4차 | `db_tiebreak_bench_4` | **실행 전**(Colab GPU 할당량 소진, 다음 주). 동점 기준을 넣고 `rr_sorted`의 상위 50이 fp32와 완전히 같은지 확인 |
+
+- **HNSW는 넣지 않는다.** 저장 방식을 바꾸는 것으로 모든 경우가 기준(p95 150ms) 안에 든다.
+- 4차를 통과하면 `rr_sorted`를 V1 스키마·적재 코드에 반영하고, 못 하면 `plain_sorted`(fp32만 행 안, 법정동 코드 순)로 간다.
+- 동시 부하(초당 20건)는 Colab CPU 2개에서 클라이언트까지 같이 돌아 판단하지 못했다. 운영 서버 사양이 정해지면 따로 잰다.
 
 ## 무엇을 재나
 
@@ -89,12 +102,12 @@ Execution Time: 958ms
   1. **벡터를 행 안에 저장**: `ALTER COLUMN embedding SET STORAGE PLAIN` 후 테이블을 다시 쓴다. 페이지당 1행이라 힙이 약 1.8GB로 커진다.
   2. **halfvec(1024)**(16비트, 약 2KB) + `STORAGE PLAIN`: 페이지당 3행, 힙 약 0.6GB. 순위가 바뀌는지 평가 질의로 확인해야 한다.
   3. 남는 초과분은 확장 단계를 넓은 범위(10km·시도)로 바로 가지 않게 하는 쪽(검색 설계)이나 앱 메모리 계산(기준의 ②)으로 본다.
-- 2차 노트북: [`infra/colab/db_storage_bench.ipynb`](../../infra/colab/db_storage_bench.ipynb). 같은 덤프·질의로 `base`(지금) / `plain` / `half` 세 표를 만들어 크기, 경우별 p50·p95, halfvec 순위 일치율(반경 10km·시군구 상위 10·50), 가장 무거운 경우와 EXPLAIN, 동시 부하를 표마다 잰다. Drive 준비물은 1차와 같고 약 35~45분 걸린다. 결과는 `service_load/bench/db_storage_<시각>.md`.
+- 2차 노트북: [`infra/colab/db_storage_bench_2.ipynb`](../../infra/colab/db_storage_bench_2.ipynb). 같은 덤프·질의로 `base`(지금) / `plain` / `half` 세 표를 만들어 크기, 경우별 p50·p95, halfvec 순위 일치율(반경 10km·시군구 상위 10·50), 가장 무거운 경우와 EXPLAIN, 동시 부하를 표마다 잰다. Drive 준비물은 1차와 같고 약 35~45분 걸린다. 결과는 `service_load/bench/db_storage_<시각>.md`.
 - **동시 부하**는 2 CPU에서 10km 쿼리 하나가 병렬 프로세스 3개로 약 110ms씩 CPU를 쓰므로 초당 20건을 처리할 수 없다. 위 1·2로 쿼리당 CPU가 줄어든 뒤 다시 잰다. 그래도 모자라면 운영 DB의 CPU 수(최소 4개)를 요구사항으로 적는다.
 
 ## 결과 — 2차: 벡터 저장 방식 비교(2026-11-20, Colab CPU 2개)
 
-노트북 `db_storage_bench.ipynb`. 같은 데이터·질의 690개, 표마다 `pg_prewarm` 뒤 한 번씩.
+노트북 `db_storage_bench_2.ipynb`. 같은 데이터·질의 690개, 표마다 `pg_prewarm` 뒤 한 번씩.
 `base` = vector(1024) TOAST(지금), `plain` = vector(1024) `STORAGE PLAIN`, `half` = halfvec(1024) `STORAGE PLAIN`.
 
 ### 크기(GB)
@@ -148,7 +161,7 @@ Execution Time: 958ms
   - **half로 상위 100을 고르고 fp32로 다시 정렬**: half로 넓게 훑은 뒤 100곳만 TOAST의 fp32 벡터로 다시 계산한다. 상위 50 겹침이 99.97%라 결과는 사실상 fp32와 같을 것으로 보이며, 메모리에 올릴 부분은 0.6GB다. 3차에서 쿼리 속도와 fp32 결과 일치율을 확인해야 한다.
 - 시도 전체에서 half가 읽은 페이지(38,863)가 행 수(48,440)에 가깝다. 같은 시도의 가게가 여러 페이지에 흩어져 있다는 뜻이라, 적재할 때 법정동 코드 순으로 넣으면 읽는 페이지를 더 줄일 수 있다(적재 코드에서 정렬만 하면 됨).
 - 동시 부하: 운영 DB는 **CPU 4개 이상**을 요구사항으로 적고, 실제 서버에서 클라이언트를 따로 두고 다시 잰다.
-- 3차 노트북: [`infra/colab/db_rerank_bench.ipynb`](../../infra/colab/db_rerank_bench.ipynb). 표 네 개를 비교한다.
+- 3차 노트북: [`infra/colab/db_rerank_bench_3.ipynb`](../../infra/colab/db_rerank_bench_3.ipynb). 표 네 개를 비교한다.
   - `plain`: fp32를 행 안에(기준).
   - `plain_sorted`: plain과 같되 법정동 코드 순으로 넣음.
   - `rr`: halfvec(행 안) + fp32(TOAST). halfvec로 상위 100을 고른 뒤 fp32로 상위 50을 다시 정렬.
@@ -158,7 +171,7 @@ Execution Time: 958ms
 
 ## 결과 — 3차: halfvec로 고르고 fp32로 다시 정렬 + 법정동 코드 순 적재(2026-11-20, Colab CPU 2개)
 
-노트북 `db_rerank_bench.ipynb`. `plain` = fp32 행 안, `rr` = halfvec 행 안 + fp32 TOAST(halfvec 상위 100 → fp32 상위 50), `_sorted` = 법정동 코드 순으로 넣음.
+노트북 `db_rerank_bench_3.ipynb`. `plain` = fp32 행 안, `rr` = halfvec 행 안 + fp32 TOAST(halfvec 상위 100 → fp32 상위 50), `_sorted` = 법정동 코드 순으로 넣음.
 
 ### p95 / p50(ms) — 기준 p95 150
 
@@ -188,6 +201,6 @@ Execution Time: 958ms
 ### 판단(3차)
 
 - **`rr_sorted`를 채택할 후보로 본다.** 모든 경우 p95가 기준 안이고(가장 무거운 시도 74ms), 메모리에 올릴 부분이 0.61GB다. 법정동 코드 순 적재는 적재 코드에서 정렬만 하면 되고 비용이 없다.
-- 결과가 fp32와 같은지는 **4차에서 동점 기준을 넣고** 확인한다. 노트북 [`infra/colab/db_tiebreak_bench.ipynb`](../../infra/colab/db_tiebreak_bench.ipynb)(약 25분, 결과 `service_load/bench/db_tiebreak_<시각>.md`).
+- 결과가 fp32와 같은지는 **4차에서 동점 기준을 넣고** 확인한다. 노트북 [`infra/colab/db_tiebreak_bench_4.ipynb`](../../infra/colab/db_tiebreak_bench_4.ipynb)(약 25분, 결과 `service_load/bench/db_tiebreak_<시각>.md`).
   - `plain_sorted`(fp32)와 `rr_sorted`를 같은 동점 기준으로 비교하고, 지금 파티션(`base`)과도 반경 10km·시군구를 비교한다. 모든 질의에서 상위 50 가게·순서가 같아야 통과.
 - 통과하면 V1 스키마에 `embedding_half halfvec(1024)`(STORAGE PLAIN)를 추가하고, 적재를 법정동 코드 순으로 바꾸고, 10-1절 쿼리에 동점 기준과 다시 정렬을 넣는다. 통과하지 못하면 `plain_sorted`(fp32만 행 안)로 간다.

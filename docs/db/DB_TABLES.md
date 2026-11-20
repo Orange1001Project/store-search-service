@@ -714,14 +714,14 @@ SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
 FROM   store_snapshot s
 WHERE  s.version_id = :v AND s.searchable
   AND  ST_DWithin(s.geom, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius_m)
-ORDER  BY s.embedding <=> :qvec
+ORDER  BY s.embedding <=> :qvec, s.store_id      -- 같은 점수면 store_id 오름차순(정책 7-5). 문서가 같은 체인점은 점수가 같다
 LIMIT  50;
 
 -- ② 넓은 지명: 법정동 코드 앞 2·5·8자리 + 벡터 상위 50
 SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
 FROM   store_snapshot s
 WHERE  s.version_id = :v AND s.searchable AND s.legal_dong_code LIKE :prefix || '%'
-ORDER  BY s.embedding <=> :qvec
+ORDER  BY s.embedding <=> :qvec, s.store_id
 LIMIT  50;
 
 -- ③ 지도 화면 사각형 안(이 지역에서 다시 검색) + 벡터 상위 50
@@ -729,8 +729,9 @@ SELECT s.store_id, 1 - (s.embedding <=> :qvec) AS cosine
 FROM   store_snapshot s
 WHERE  s.version_id = :v AND s.searchable
   AND  s.geom && ST_MakeEnvelope(:west, :south, :east, :north, 4326)::geography
-ORDER  BY s.embedding <=> :qvec
+ORDER  BY s.embedding <=> :qvec, s.store_id
 LIMIT  50;
+-- ①②③의 벡터 저장 방식(행 안 halfvec로 고르고 fp32로 다시 정렬할지)은 측정 4차 뒤 정한다(DB_SEARCH_BENCH.md)
 
 -- ④ BM25·상호 일치로만 들어온 후보의 실제 코사인
 SELECT store_id, 1 - (embedding <=> :qvec) AS cosine
@@ -866,7 +867,7 @@ WHERE  l.logged_at >= :from AND l.logged_at < :to;
 | 수정 이력이 없으면 누가 바꿨는지 모르지 않나? | 마지막으로 바꾼 관리자·시각·사유는 남는다. 그 전 값의 기록만 없다. 필요해지면 이력 표를 더한다. |
 | 보여 준 가게를 왜 한 행에 목록으로 넣었나? | 가게마다 한 행씩 쓰면 검색 한 번에 20행이 생긴다. 목록으로 넣으면 쓰기와 보관이 단순하고, 분석할 때는 목록을 펼쳐 본다(10-1절 조회 ⑫). |
 | 로그에 FK가 없으면 잘못된 값이 들어가지 않나? | 서버가 자동으로 쓰는 기록이라 잘못 들어갈 일이 적다. FK가 있으면 쓰기가 느려지고, 월 단위 삭제나 폐업 가게를 가리키는 옛 로그가 꼬인다. |
-| 벡터 색인(HNSW)은 왜 없나? | 범위로 먼저 좁히고 그 안에서만 계산한다. 1km 안은 보통 361곳이다. 가장 큰 경우(시도 전체 약 4.7만 곳)는 실제 DB에서 재 보고 느리면 대안을 쓴다([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절). |
+| 벡터 색인(HNSW)은 왜 없나? | 범위로 먼저 좁히고 그 안에서만 계산한다. 1km 안은 보통 361곳이다. 가장 큰 경우(시도 전체 약 4.8만 곳)도 벡터를 행 안에 두면 p95 74ms라 필요 없었다([`DB_DESIGN_WHY.md`](DB_DESIGN_WHY.md) 8절, [`DB_SEARCH_BENCH.md`](DB_SEARCH_BENCH.md)). |
 | 탈퇴 회원 행을 남기면 개인정보 보관 아닌가? | 닉네임·이메일은 비우고 로그인 수단은 지워서, 남는 것은 의미 없는 회원 번호와 시각뿐이다. |
 | 결제 수단이 늘면 열을 추가해야 하나? | 아니다. `payment_method`에 한 행 넣고, 스냅샷 결제 목록에 값만 넣는다. |
 
