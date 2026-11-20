@@ -15,7 +15,7 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 /**
  * 경로별 접근 규칙(API_RULES.md 5절).
  * <ul>
- * <li>공개: 메타·검색·조회·상세·이벤트·소셜 로그인, 관리자 로그인, health</li>
+ * <li>공개: 메타·검색·조회·상세·이벤트·소셜 로그인·회원 로그아웃, 관리자 로그인·로그아웃, health</li>
  * <li>회원만: /api/v1/me/** — 회원 인증(JWT 쿠키)은 로그인 구현 때 이 체인에 필터로 더한다</li>
  * <li>관리자만: /api/v1/admin/** — 관리자 세션도 로그인 구현 때 더한다</li>
  * </ul>
@@ -35,6 +35,8 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers("/api/v1/me/**").authenticated()
 				.requestMatchers("/api/v1/admin/auth/login").permitAll()
+				// 로그아웃은 세션이 이미 끝났어도 204(401 없음). 세션 쿠키가 있으면 CsrfCookieFilter가 CSRF는 검사한다
+				.requestMatchers("/api/v1/admin/auth/logout").permitAll()
 				.requestMatchers("/api/v1/admin/**").authenticated()
 				.anyRequest().permitAll())
 			.exceptionHandling(e -> e

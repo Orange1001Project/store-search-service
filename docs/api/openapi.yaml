@@ -113,9 +113,11 @@ paths:
         - 지명만 입력(P1): placeOnly를 채우고 그 범위의 검색어 없는 조회 결과를 results·pins에 함께 준다.
         - 로그인한 회원(P1)이면 favorited를 응답 때마다 붙이고, inputType이 typed·recent·place_store·autocomplete일 때만 최근 검색어에 저장한다(FR-MBR-07).
 
-        - 검색어가 기호·일반어뿐이면 검색하지 않고 200 + 0곳 + message empty_query(FR-SRC-03).
+        검색어 q의 200과 400 경계(FR-SRC-02·03):
+        - 400 INVALID_REQUEST는 형식 검사만: q가 없음·`""`(길이 0)·보낸 그대로 50자 초과. 화면은 빈 칸이면 부르지 않으므로 400은 화면 버그다.
+        - 형식은 맞지만 정규화(NFKC·공백 정리) 뒤 비었거나(공백만), 한글·영문·숫자가 없거나(기호만), 일반어만이면 검색하지 않고 200 + 0곳 + message empty_query. 검색 로그도 남기지 않는다.
 
-        오류: 400 INVALID_REQUEST(빈 검색어, 50자 초과, view=map인데 bounds 없음, 좌표 형식 오류, bounds 대각선이 limits.mapMaxDiagonalKm 초과)
+        오류: 400 INVALID_REQUEST(q 없음·길이 0·50자 초과, view=map인데 bounds 없음, 좌표 형식 오류, bounds 대각선이 limits.mapMaxDiagonalKm 초과)
       x-priority: P0
       x-requirements: [IR-01, FR-SRC-03, FR-SRC-04, FR-SRC-05, FR-SRC-06, FR-SRC-07, FR-MAP-10, FR-LOC-01, FR-LOC-05, FR-LOC-06, FR-LOC-07, FR-RNK-01, FR-RNK-09, FR-MSG-01, FR-MSG-02, FR-MSG-04, FR-MAP-02, FR-MAP-03, FR-MAP-04, FR-MAP-08, FR-LST-02]
       security: [{}, { sessionCookie: [] }, { sessionCookie: [], memberAccess: [] }]
@@ -732,12 +734,13 @@ paths:
       operationId: adminLogout
       summary: 관리자 로그아웃
       description: |
-        세션을 폐기하고 쿠키를 지운다. 세션이 이미 끝났어도 204(로그아웃은 실패하지 않는다).
+        세션을 폐기하고 쿠키를 지운다. 세션이 이미 끝났거나 admin_sid 쿠키가 없어도 204(로그아웃은 실패하지 않는다, 401 없음).
+        admin_sid 쿠키가 있으면(만료된 세션이어도) X-CSRF-Token을 검사한다. 쿠키가 없으면 검사할 대상이 없어 그대로 204.
 
-        오류: 403 CSRF_FAILED
+        오류: 403 CSRF_FAILED(admin_sid 쿠키가 있는데 X-CSRF-Token이 없거나 다름)
       x-priority: P0
       x-requirements: [FR-ADM-02]
-      security: [{ adminSession: [], csrfToken: [] }]
+      security: [{}, { adminSession: [], csrfToken: [] }]
       responses:
         '204':
           description: 로그아웃
@@ -896,8 +899,8 @@ paths:
               example: &adminStoreDetailExample
                 storeId: 3f6c2b1e-8a4d-4c5e-9b7a-2d1e0f9a8b71
                 name: 가마치통닭 둔산갤러리아점
-                businessNo: '3051234567'
-                merchantNo: '2024012345'
+                businessNo: '0000000000'
+                merchantNo: '0000000000'
                 marketType: 골목형상점가
                 status: active
                 statusChangedAt: '2026-11-09T04:10:00+09:00'
@@ -1058,8 +1061,8 @@ paths:
               example:
                 storeId: 3f6c2b1e-8a4d-4c5e-9b7a-2d1e0f9a8b71
                 name: 가마치통닭 둔산갤러리아점
-                businessNo: '3051234567'
-                merchantNo: '2024012345'
+                businessNo: '0000000000'
+                merchantNo: '0000000000'
                 marketType: 골목형상점가
                 status: active
                 statusChangedAt: '2026-11-09T04:10:00+09:00'
@@ -1591,12 +1594,13 @@ paths:
       operationId: logout
       summary: 로그아웃
       description: |
-        refresh_token을 폐기하고 회원 쿠키를 지운다(FR-MBR-06). 접근 토큰은 없거나 만료돼도 된다. 갱신 토큰이 이미 없어도 204(로그아웃은 실패하지 않는다).
+        refresh_token을 폐기하고 회원 쿠키를 지운다(FR-MBR-06). 접근 토큰은 없거나 만료돼도 된다. 갱신 토큰이 이미 없어도 204(로그아웃은 실패하지 않는다, 401 없음).
+        회원 인증 쿠키(access_token·refresh_token·signup_token)가 하나라도 있으면 X-CSRF-Token을 검사한다. 하나도 없으면 그대로 204.
 
-        오류: 403 CSRF_FAILED
+        오류: 403 CSRF_FAILED(회원 인증 쿠키가 있는데 X-CSRF-Token이 없거나 다름)
       x-priority: P1
       x-requirements: [FR-MBR-06, FR-MBR-09]
-      security: [{ refreshCookie: [], csrfToken: [] }]
+      security: [{}, { refreshCookie: [], csrfToken: [] }]
       responses:
         '204':
           description: 로그아웃됨
@@ -1761,7 +1765,8 @@ paths:
       operationId: listFavorites
       summary: 관심 가맹점 목록(U-10)
       description: |
-        추가한 최신 순, 50곳씩. 확인 대기 가게는 목록에서 숨기고, 폐업·숨김 가게는 이미 지워져 없다(FR-MBR-08).
+        추가한 최신 순, 50곳씩. 다음 50곳이 있으면 응답에 nextCursor가 오고, 그 값을 cursor로 보내 이어 받는다(마지막 페이지면 nextCursor 없음).
+        확인 대기 가게는 목록에서 숨기고, 폐업·숨김 가게는 이미 지워져 없다(FR-MBR-08).
         거리는 화면이 GPS로 계산한다(가게 좌표는 응답에 있음). 0곳이면 빈 목록 → 화면은 "등록된 관심 가맹점이 없어요."
 
         오류: 400 INVALID_REQUEST(cursor 형식) · 401 AUTH_REQUIRED·TOKEN_EXPIRED
@@ -2706,6 +2711,8 @@ components:
           description: |
             field에 따라 JSON 값의 종류가 다르다(타입을 하나로 정할 수 없어 명세에서는 타입을 비워 둠, 서버가 field별로 검사).
             storeName·marketName → 문자열(최대 100자, DB 열 길이), items → 문자열(최대 1000자), paymentCard·paymentQr → true/false, category → CategoryCode 문자열
+            생성되는 Java DTO에서 value는 Object다(Jackson이 JSON 문자열은 String, true/false는 Boolean으로 읽음). oneOf(string | boolean)로 나누면 생성 코드에 다루기 번거로운 래퍼 타입이 생겨서 타입을 비워 둔다.
+            그래서 형식 검사는 서버가 field별로 한다. 타입이 다르면 400 INVALID_REQUEST(details.fields: field=value, reason=INVALID_FORMAT), 길이 초과는 reason=TOO_LONG, 빈 문자열은 reason=REQUIRED.
           example: '치킨, 통닭, 닭강정'
         reason: { type: string, minLength: 1, maxLength: 200 }
 
