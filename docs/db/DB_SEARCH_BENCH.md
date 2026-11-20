@@ -89,4 +89,5 @@ Execution Time: 958ms
   1. **벡터를 행 안에 저장**: `ALTER COLUMN embedding SET STORAGE PLAIN` 후 테이블을 다시 쓴다. 페이지당 1행이라 힙이 약 1.8GB로 커진다.
   2. **halfvec(1024)**(16비트, 약 2KB) + `STORAGE PLAIN`: 페이지당 3행, 힙 약 0.6GB. 순위가 바뀌는지 평가 질의로 확인해야 한다.
   3. 남는 초과분은 확장 단계를 넓은 범위(10km·시도)로 바로 가지 않게 하는 쪽(검색 설계)이나 앱 메모리 계산(기준의 ②)으로 본다.
+- 2차 노트북: [`infra/colab/db_storage_bench.ipynb`](../../infra/colab/db_storage_bench.ipynb). 같은 덤프·질의로 `base`(지금) / `plain` / `half` 세 표를 만들어 크기, 경우별 p50·p95, halfvec 순위 일치율(반경 10km·시군구 상위 10·50), 가장 무거운 경우와 EXPLAIN, 동시 부하를 표마다 잰다. Drive 준비물은 1차와 같고 약 35~45분 걸린다. 결과는 `service_load/bench/db_storage_<시각>.md`.
 - **동시 부하**는 2 CPU에서 10km 쿼리 하나가 병렬 프로세스 3개로 약 110ms씩 CPU를 쓰므로 초당 20건을 처리할 수 없다. 위 1·2로 쿼리당 CPU가 줄어든 뒤 다시 잰다. 그래도 모자라면 운영 DB의 CPU 수(최소 4개)를 요구사항으로 적는다.
