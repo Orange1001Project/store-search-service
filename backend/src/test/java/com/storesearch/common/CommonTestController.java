@@ -6,6 +6,7 @@ import com.storesearch.api.model.LifecycleStatus;
 import com.storesearch.common.error.ApiException;
 import jakarta.validation.Valid;
 import java.util.Map;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +40,12 @@ class CommonTestController {
 	@PostMapping("/auth/test-write")
 	Map<String, String> memberWrite() {
 		return Map.of("ok", "true");
+	}
+
+	/** 로그아웃 접근 규칙 확인용(실제 로그아웃은 로그인 구현 때 만든다). */
+	@PostMapping({ "/auth/logout", "/admin/auth/logout" })
+	ResponseEntity<Void> logout() {
+		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/events")

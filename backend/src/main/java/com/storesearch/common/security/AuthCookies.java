@@ -17,8 +17,8 @@ public final class AuthCookies {
 	/** 회원 CSRF 토큰(화면이 읽음, 14일). */
 	public static final String MEMBER_CSRF = "csrf_token";
 
-	/** 관리자 서버 세션(경로 /api/v1/admin). */
-	public static final String ADMIN_SESSION = "admin_session";
+	/** 관리자 서버 세션(경로 /api/v1/admin). 이름은 openapi.yaml securitySchemes.adminSession과 같아야 한다. */
+	public static final String ADMIN_SESSION = "admin_sid";
 
 	/** 관리자 CSRF 토큰(화면이 읽음, 세션 쿠키). */
 	public static final String ADMIN_CSRF = "admin_csrf_token";

@@ -156,7 +156,7 @@ class CommonWebTest {
 
 	@Test
 	void adminCsrfUsesItsOwnCookie() {
-		Cookie session = new Cookie("admin_session", "s");
+		Cookie session = new Cookie("admin_sid", "s");
 		Cookie memberCsrf = new Cookie("csrf_token", "token-1");
 
 		MvcTestResult result = mvc.post().uri("/api/v1/admin/stores/x/visibility")
@@ -164,6 +164,27 @@ class CommonWebTest {
 
 		assertThat(result).hasStatus(HttpStatus.FORBIDDEN);
 		assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("CSRF_FAILED");
+	}
+
+	@Test
+	void logoutNeverAnswers401ButChecksCsrfWhenCookiePresent() {
+		// 세션 쿠키가 없으면 인증·CSRF 모두 건너뛴다(로그아웃은 실패하지 않는다)
+		assertThat(mvc.post().uri("/api/v1/admin/auth/logout").exchange()).hasStatus(HttpStatus.NO_CONTENT);
+		assertThat(mvc.post().uri("/api/v1/auth/logout").exchange()).hasStatus(HttpStatus.NO_CONTENT);
+
+		// 만료된 세션이라도 쿠키가 있으면 CSRF는 검사한다
+		Cookie session = new Cookie("admin_sid", "expired");
+		Cookie adminCsrf = new Cookie("admin_csrf_token", "a-1");
+		MvcTestResult noHeader = mvc.post().uri("/api/v1/admin/auth/logout").cookie(session, adminCsrf).exchange();
+		assertThat(noHeader).hasStatus(HttpStatus.FORBIDDEN);
+		assertThat(noHeader).bodyJson().extractingPath("$.code").isEqualTo("CSRF_FAILED");
+		assertThat(mvc.post().uri("/api/v1/admin/auth/logout").cookie(session, adminCsrf).header("X-CSRF-Token", "a-1")
+			.exchange()).hasStatus(HttpStatus.NO_CONTENT);
+
+		Cookie refresh = new Cookie("refresh_token", "r");
+		Cookie memberCsrf = new Cookie("csrf_token", "m-1");
+		assertThat(mvc.post().uri("/api/v1/auth/logout").cookie(refresh, memberCsrf).exchange())
+			.hasStatus(HttpStatus.FORBIDDEN);
 	}
 
 	@Test
