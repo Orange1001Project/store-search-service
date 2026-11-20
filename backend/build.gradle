@@ -28,7 +28,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.flywaydb:flyway-database-postgresql'
-	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'org.dhatim:fastexcel-reader:0.20.2'   // 원천 엑셀(22만 행)을 스트리밍으로 읽음
+	implementation 'org.postgresql:postgresql'            // 스냅샷 적재에 COPY API를 씀
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
@@ -38,6 +39,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation 'org.dhatim:fastexcel:0.20.2'   // 테스트용 엑셀 만들기
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -71,6 +73,11 @@ openApiGenerate {
 }
 
 sourceSets.main.java.srcDir(layout.buildDirectory.dir('generated/openapi/src/main/java'))
+
+// 레포의 seed/ 기준 데이터를 classpath:seed/ 로 넣는다(파일은 seed/에만 두고 복사하지 않음)
+tasks.named('processResources') {
+	from("$rootDir/../seed") { into 'seed' }
+}
 tasks.named('compileJava') { dependsOn 'openApiGenerate' }
 
 tasks.named('test') {

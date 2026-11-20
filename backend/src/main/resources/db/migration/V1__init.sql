@@ -145,7 +145,7 @@ CREATE UNIQUE INDEX uq_refresh_job_file_done ON refresh_job (file_sha256) WHERE 
 -- =====================================================================
 CREATE TABLE store (                                             -- 가게 1곳 = 1행: 원천 값 + 현재 상태
     store_id            uuid        PRIMARY KEY,                 -- 기존 UUID 유지(평가 정답과 연결), 새 가게만 gen_random_uuid()
-    fingerprint         char(64)    NOT NULL UNIQUE,             -- sha256(사업자번호+가맹점명+도로명 주소), 원천 값으로. 도로명 주소 = 시군구+도로명+건물번호(시도·상세 주소·괄호 뒤 제외, 공백 무시)
+    fingerprint         char(64)    NOT NULL UNIQUE,             -- sha256(사업자번호|가맹점명|도로명 키). 도로명 키 = 시도를 뺀 주소에서 첫 번호(건물번호·지번)까지, 공백 무시. 규칙은 StoreFingerprint
     -- 원천 값(매주 원천 파일로 덮어씀. 관리자가 고친 값은 store_override에)
     store_name          varchar(100) NOT NULL,
     business_no         varchar(20)  NOT NULL,                   -- 문자열(앞자리 0)
@@ -171,7 +171,7 @@ CREATE TABLE store (                                             -- 가게 1곳 
     visibility_reason   varchar(200),                            -- 마지막 숨김·해제 사유(둘 다 필수, FR-STO-07)
     visibility_changed_by bigint    REFERENCES admin_user (admin_id),   -- 마지막으로 숨기거나 해제한 관리자
     visibility_changed_at timestamptz,                           -- 마지막으로 숨기거나 해제한 시각. 한 번도 안 바꿨으면 NULL
-    coord_error         boolean     NOT NULL DEFAULT false,      -- 수정 값까지 반영한 좌표가 0·국내 밖·충돌
+    coord_error         boolean     NOT NULL DEFAULT false,      -- 수정 값까지 반영한 좌표가 비었거나 0·국내 밖, 또는 같은 가게 원천 행끼리 100m 넘게 다름(충돌)
     last_seen_version_id smallint   NOT NULL REFERENCES data_version (version_id),   -- 원천에서 마지막으로 본 버전
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now(),
